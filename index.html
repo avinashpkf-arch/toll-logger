@@ -243,7 +243,7 @@ function cdecode(L,off,K){            // L = log-probs, slot i char c at L[off+i
       if(c==='D'||c==='L'){const set=c==='D'?DIGI:LETI;j=set[0];for(const q of set)if(L[off+i*K+q]>L[off+i*K+j])j=q}else j=FAL.indexOf(c);
       sc+=L[off+i*K+j];out+=FAL[j]}
     for(let i=t.length;i<10;i++)sc+=L[off+i*K+PADI];
-    if(t[0]==='S'){sc+=ss;out=sv+out}
+    if(t[0]==='S'){if(t[3]==='D'){sc+=ss;out=sv+out}else{sc+=L[off+FAL.indexOf('D')]+L[off+K+FAL.indexOf('L')];out='DL'+out}}   // 1-digit district codes exist only in Delhi
     if(!best||sc>best[0])best=[sc,out]}
   return best;
 }
@@ -265,7 +265,7 @@ async function fastRead(frames,liveMode){
 }
 function decide(V,Q,C){        // best plate = most weighted votes; conf = certainty of the reads that agree; share = how much they agree
   const all=Object.values(V).reduce((a,v)=>a+v,0),top=Object.entries(V).sort((x,y)=>y[1]-x[1])[0];
-  const conf=top?Q[top[0]]/C[top[0]]:0,share=top&&all?top[1]/all:0;return{plate:top&&conf>0.3?top[0]:'',conf,share};
+  const conf=top?Q[top[0]]/C[top[0]]:0,share=top&&all?top[1]/all:0;return{plate:top&&conf>=0.4?top[0]:'',conf,share};   // below 0.4 = 'not read' (tuned on 126 labelled toll photos)
 }
 /* ---- live reading: read the plate continuously while the vehicle approaches ---- */
 let hist=[],liveOn=cfg.live!==false;
@@ -292,7 +292,7 @@ async function pump(){
     try{const f=await fastRead(j.frames||[j.canvas]),V={...f.votes},Q={...f.q},C={...f.cnt};
       if(j.hv)for(const k in j.hv.V){V[k]=(V[k]||0)+j.hv.V[k];Q[k]=(Q[k]||0)+j.hv.Q[k];C[k]=(C[k]||0)+j.hv.C[k]}   // add what live reading saw just before the tap
       const o={...decide(V,Q,C),raw:f.raw};
-      if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.lc=(o.conf<0.6||o.share<0.35)?1:0;r.hint=''}
+      if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.lc=(o.conf<0.65||o.share<0.5)?1:0;r.hint=''}
       else if(!r.plate)r.hint=o.raw.slice(0,12);
       r.status='done'}catch(e){console.log(e);r.status='failed'}
     save();counts();refreshLog();showLast(r);kick();
