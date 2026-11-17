@@ -516,7 +516,7 @@ async function sync(){
       part.forEach((r,k)=>{if(r.updated===sent[k])r.dirty=0});save();
     }
     const t0=Date.now(),j=await api(null,Math.max(0,cfg.lastSrv-120000));   // 2-min overlap so nothing written mid-read is missed
-    skew=Math.round((t0+Date.now())/2-j.now);
+    skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet&&j.sheet!==cfg.sheet){cfg.sheet=j.sheet;saveCfg()}
     const ch=merge(j.records||[]);
     lastOk=Date.now();syncErr='';save();saveCfg();
     if(ch){counts();refreshLog()}
@@ -546,6 +546,7 @@ function setupInfo(){
     if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching times will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
   }
   if(cfg.url)line('Google plate reader: '+(gOk?'on ✓':gOk===false?'OFF – add Drive API service in Apps Script':'checking…'),gOk?'ok':gOk===false?'err':'');
+  if(cfg.url&&cfg.sheet){const a=document.createElement('a');a.href=cfg.sheet;a.target='_blank';a.rel='noopener';a.className='sec';a.style.cssText='display:block;text-align:center;margin:8px 0;font-weight:700;text-decoration:none;color:var(--accent)';a.textContent='Open the Google Sheet';I.append(a)}
   line('Records: Side A '+L.filter(r=>r.gate==='A').length+' · Side B '+L.filter(r=>r.gate==='B').length+(L.some(r=>!r.gate)?' · no side '+L.filter(r=>!r.gate).length:''));
 }
 function setGate(g){cfg.gate=g;saveCfg();$('urlRes').textContent=$('urlRes').textContent.replace(' Now pick Side A or Side B below.','');side=g==='A'?'ENTRY':'EXIT';
@@ -560,7 +561,7 @@ $('saveUrl').onclick=async()=>{
   if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){R.className='err';R.textContent='That doesn\'t look right. It should start with https://script.google.com/ and end with /exec.';return}
   R.className='t';R.textContent='Testing…';
   const prev=cfg.url;cfg.url=u;
-  try{await api(null,Date.now());
+  try{const j0=await api(null,Date.now());if(j0.sheet){cfg.sheet=j0.sheet}
     try{const c=await api({action:'ocrcheck'});gOk=c.drive?true:false}catch(e){gOk=false}ocrChip();
     if(prev!==u){cfg.lastSrv=0;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
     saveCfg();R.className='ok';R.textContent='Connected ✓'+(gOk?' Google plate reader ✓':' – Google plate reader is OFF: add the Drive API service in Apps Script (see SETUP).')+(cfg.gate?'':' Now pick Side A or Side B below.');sync()}

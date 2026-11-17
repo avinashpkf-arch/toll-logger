@@ -1,10 +1,27 @@
-// Toll Detour Live Log - Google Apps Script (paste into Extensions > Apps Script of a Google Sheet)
+// Toll Detour Live Log - Google Apps Script
+// Works pasted into a Google Sheet (Extensions > Apps Script) or as a standalone script:
+// if there is no sheet, it creates "Toll Audit Live" in your Google Drive and uses it.
 const SHEET = 'Log';
 const HEAD = ['id','gate','dir','type','plate','time_ms','time','updated','deleted','srv','thumb'];
 const MAXTHUMB = 45000; // a Sheets cell holds 50,000 characters at most
 
+function book_() {
+  let ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
+  if (ss) return ss;
+  const p = PropertiesService.getScriptProperties(), id = p.getProperty('SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id); } catch (e) {} }
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const id2 = p.getProperty('SHEET_ID');
+    if (id2) { try { return SpreadsheetApp.openById(id2); } catch (e) {} }
+    ss = SpreadsheetApp.create('Toll Audit Live');
+    p.setProperty('SHEET_ID', ss.getId());
+    return ss;
+  } finally { lock.releaseLock(); }
+}
 function sh_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = book_();
   let s = ss.getSheetByName(SHEET);
   if (!s) {
     s = ss.insertSheet(SHEET);
@@ -29,7 +46,7 @@ function doGet(e) {
           time:String(r[6]),updated:Number(r[7]),deleted:Number(r[8]),srv:Number(r[9]),thumb:String(r[10]||'')});
       });
     }
-    return out_({ok:true, records:recs, now:Date.now()});
+    return out_({ok:true, records:recs, now:Date.now(), sheet:book_().getUrl()});
   } catch (err) { return out_({ok:false, error:String(err)}); }
 }
 // Google's own text recognition (Drive OCR). Needs: Apps Script editor > Services (+) > Drive API > Add.
@@ -52,6 +69,7 @@ function doPost(e) {
   if (body.action === 'ocr') {
     try { return out_({ok:true, text: ocr_(body.image)}); } catch (err) { return out_({ok:false, error:'ocr: ' + err}); }
   }
+  try { book_(); } catch (err) { return out_({ok:false, error:String(err)}); }   // make sure the spreadsheet exists before locking
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(25000);
