@@ -1,0 +1,31 @@
+ONE-TIME CLOUD SETUP (do this once, on a computer or one phone, with your Google account)
+
+1. Google Drive > New > Google Sheets. Name it "Toll Audit Live".
+2. In the sheet: Extensions > Apps Script. Delete everything there, paste the contents of Code.gs, click Save.
+3. Click Deploy > New deployment > gear icon > Web app.
+     Execute as:        Me
+     Who has access:    Anyone
+   Click Deploy. When asked, Authorize access (Advanced > "Go to project (unsafe)" > Allow - this is your own script).
+4. Copy the "Web app URL" (ends with /exec).
+5. On BOTH phones: open toll_logger.html (it opens on the live camera). Go to the Setup tab,
+   paste the URL > Save & test. Then on one phone tap "Side A", on the other tap "Side B".
+   Side A starts on ENTRY, Side B on EXIT (you can still switch at the top).
+
+ALREADY DEPLOYED AN OLDER Code.gs?
+   Paste the new Code.gs, Save, then Deploy > Manage deployments > pencil icon > Version: "New version" > Deploy.
+   This keeps the same URL. ("New deployment" would give you a new URL.)
+
+Using it
+- The top-right chip shows sync: "Synced ✓", "3 to send", "Sync ✗" (signal dropped - it retries every 10 seconds),
+  or "Clock off!" (phone time is more than a minute out - turn on automatic date & time, or exit times won't match).
+- Each phone sees both sides' vehicles. Plate corrections, type changes and deletions sync both ways.
+- "Match & download Excel" works on either phone once both have synced.
+- Every record also appears live in the "Log" tab of the Google Sheet.
+- The app needs internet: the Sheet is where both phones meet. Until it is linked, a red bar on the camera screen says so.
+- "Clear this phone" wipes this phone and disconnects it; the Sheet keeps its copy. For a new audit, make a new sheet.
+
+Notes
+- Anyone who has the URL can read and write the log. Share it only between you two, and delete the deployment
+  (Deploy > Manage deployments > Archive) when the audit is finished.
+- Plate numbers are personal data; keep the sheet private to the audit team.
+- The plate reader loads when the app opens; wait for "Reader ✓" before the first vehicle.

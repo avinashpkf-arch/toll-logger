@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Toll Detour Logger</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#f4f5f9;--card:#fff;--text:#161a26;--mute:#667085;--line:#dfe2ec;--in:#0a7a4b;--out:#b45309;--bad:#b3261e;--ok:#0a7a4b}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1118;--card:#191c27;--text:#eceef5;--mute:#98a0b8;--line:#2a2f40;--in:#34d399;--out:#fbbf24;--bad:#ff8a80;--ok:#4ade80}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 Calibri,system-ui,sans-serif}
+main{max-width:560px;margin:0 auto;padding:10px;padding-top:max(10px,env(safe-area-inset-top));padding-bottom:max(14px,env(safe-area-inset-bottom))}
+button{font:700 15px Calibri,system-ui,sans-serif;border:0;border-radius:12px;cursor:pointer;color:inherit;background:none}
+.top{display:flex;gap:8px;align-items:center}
+.seg{flex:1;display:grid;grid-template-columns:1fr 1fr;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px}
+.seg button{padding:11px 4px;color:var(--mute)}.seg b{margin-left:4px;font-size:17px}
+#bIn.on{background:var(--in);color:#fff}#bOut.on{background:var(--out);color:#fff}
+.chip{padding:8px 10px;border-radius:999px;font-size:12px;background:var(--card);border:1px solid var(--line);white-space:nowrap}
+.chip.ok{color:var(--ok)}.chip.wait{color:var(--out)}.chip.bad{color:var(--bad)}
+input.url{width:100%;font:inherit;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);margin:6px 0 0}
+.sec.on{border:2px solid var(--text)}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;margin:10px 0;border-bottom:2px solid var(--line)}
+.tabs button{padding:10px;color:var(--mute);border-radius:0;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button.on{color:var(--text);border-color:var(--text)}
+#camwrap{position:relative;margin:0 auto;background:#000;border-radius:14px;overflow:hidden;width:100%;aspect-ratio:16/9}
+#vid{width:100%;height:100%;display:block;object-fit:fill}
+#guide{position:absolute;left:50%;top:55%;width:70%;height:24%;transform:translate(-50%,-50%);border:3px solid #ffd400;border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.42);pointer-events:none}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
+#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px;font-size:14px}
+.bar{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;color:var(--mute)}
+.bar .last{flex:1;font-weight:700;color:var(--text);min-height:20px}
+.bar button{padding:7px 12px;border:1px solid var(--line);background:var(--card);font-size:13px}
+.types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.types button{height:74px;color:#fff;font-size:15px;letter-spacing:.3px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.types button:active{transform:translateY(2px);box-shadow:none;filter:brightness(.9)}
+[data-t=Car]{background:#2563eb}[data-t=LCV]{background:#0d9488}[data-t=Truck]{background:#d97706}[data-t=Bus]{background:#7c3aed}[data-t=MAV]{background:#dc2626}
+.hint{text-align:center;color:var(--mute);font-size:12px;margin-top:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+.card h2{font-size:15px;margin:0 0 6px}
+.row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.row img,.ph{width:64px;height:42px;border-radius:6px;object-fit:cover;background:var(--line)}
+.t{font-size:12px;color:var(--mute)}
+input.plate,select,input[type=number]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+input.plate{width:100%;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:2px 0}input[type=number]{width:62px}
+.x{padding:6px 10px;color:var(--bad);border:1px solid var(--line)}
+.pri{width:100%;padding:13px;background:#0E2B8D;color:#fff;margin-top:8px}@media (prefers-color-scheme:dark){.pri{background:#4f6df5}}
+.sec{padding:10px;border:1px solid var(--line);background:var(--card);width:100%}
+.ok{color:var(--ok)}.err{color:var(--bad)}.scroll{overflow-x:auto}
+table{border-collapse:collapse;font-size:13px;width:100%}td,th{padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
+input[type=file]{display:none}
+</style></head><body><main>
+<div class="top">
+ <div class="seg"><button id="bIn" class="on">ENTRY<b id="cIn">0</b></button><button id="bOut">EXIT<b id="cOut">0</b></button></div>
+ <div style="display:grid;gap:4px"><button id="ocr" class="chip wait">Reader…</button><button id="sync" class="chip bad">Not linked</button></div>
+</div>
+<div class="tabs"><button id="tCam" class="on">Camera</button><button id="tLog">Log &amp; Export</button><button id="tSet">Setup</button></div>
+
+<section id="vCam">
+ <button id="link" class="pri" style="margin:0 0 8px;background:var(--bad)" hidden>Link Google Sheet first – tap here</button>
+ <div id="camwrap"><video id="vid" playsinline muted autoplay></video><div id="guide"></div><div id="flash"></div><div id="msg">Starting camera…</div></div>
+ <div class="bar"><span class="last" id="last"></span><span id="qn"></span><button id="undo">Undo</button></div>
+ <div class="types"><button data-t="Car">CAR</button><button data-t="LCV">LCV</button><button data-t="Truck">TRUCK</button><button data-t="Bus">BUS</button><button data-t="MAV">MAV</button></div>
+ <div class="hint">Plate inside the yellow box, then tap the vehicle type. One tap = photo + type.<br>Box size <input type="range" id="gs" min="40" max="100" value="70" style="vertical-align:middle"></div>
+</section>
+
+<section id="vLog" hidden>
+ <div class="card"><h2>Summary</h2><div id="sum" class="t" style="font-size:14px"></div></div>
+ <div class="card"><h2>Match &amp; export</h2>
+  Keep vehicles that exit within <input type="number" id="maxm" value="15" min="1"> min (at least <input type="number" id="minm" value="0" min="0"> min)
+  <button id="go" class="pri">Match &amp; download Excel</button><div id="res" style="margin-top:8px"></div></div>
+ <div class="card"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px"><button id="lIn" class="sec">Entry list</button><button id="lOut" class="sec">Exit list</button></div><div id="list"></div></div>
+ <div class="card"><h2>Other</h2>
+  Add from gallery as <select id="impT"><option>Car</option><option>LCV</option><option>Truck</option><option>Bus</option><option>MAV</option></select>
+  <label class="sec" style="display:block;text-align:center;margin-top:6px;border-radius:12px;font-weight:700">Choose photos<input type="file" accept="image/*" multiple id="fGal"></label>
+  <button id="clear" class="sec" style="margin-top:8px;color:var(--bad)">Clear this phone</button>
+  <div class="t" style="margin-top:6px">Photo time = the moment of the tap, so keep both phones on automatic time. Orange plates need a check; tap a plate to correct it. Corrections and deletions sync to the other phone.</div></div>
+</section>
+
+<section id="vSet" hidden>
+ <div class="card"><h2>Cloud sync (Google Sheet)</h2>
+  <div class="t">Paste the Web app URL from Apps Script (it ends with /exec). Do this once on each phone.</div>
+  <input id="url" class="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <button id="saveUrl" class="pri">Save &amp; test</button><div id="urlRes" style="margin-top:6px"></div></div>
+ <div class="card"><h2>This phone is</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="gA" class="sec">Side A</button><button id="gB" class="sec">Side B</button></div>
+  <div class="t" style="margin-top:6px">Side A starts on ENTRY and Side B on EXIT. You can still switch with the buttons at the top.</div></div>
+ <div class="card"><h2>Status</h2><div id="sInfo" style="font-size:14px"></div>
+  <button id="syncNow" class="sec" style="margin-top:8px">Sync now</button></div>
+</section>
+<input type="file" accept="image/*" capture="environment" id="fCam">
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const KEY='tollLog_v2',TYPES=['Car','LCV','Truck','Bus','MAV'],PLATE=/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/;
+const STATES=new Set('AN AP AR AS BR CH CG DD DL DN GA GJ HP HR JH JK KA KL LA LD MH ML MN MP MZ NL OD OR PB PY RJ SK TN TR TS UK UP WB'.split(' '));
+const TD={O:'0',Q:'0',D:'0',I:'1',L:'1',Z:'2',S:'5',B:'8',G:'6'},TA={'0':'O','1':'I','2':'Z','5':'S','8':'B','6':'G'};
+let recs=[],queue=[],busy=false,side='ENTRY',lside='ENTRY',view='cam',worker=null,ocrP=null,stream=null,pendType='Car',clearArm=false;
+const CKEY='tollCfg_v1';let cfg={url:'',gate:'',lastSrv:0};
+try{recs=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
+try{Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
+const saveCfg=()=>{try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(e){}};
+recs.forEach(r=>{if(r.status==='queued'||r.status==='reading')r.status='failed';
+  if(r.updated==null){r.updated=r.t;r.own=true;r.dirty=1;r.deleted=0;r.gate=r.gate||cfg.gate||''}});   // records from the old version
+if(cfg.gate)side=cfg.gate==='A'?'ENTRY':'EXIT';
+const $=id=>document.getElementById(id);
+const live=()=>recs.filter(r=>!r.deleted);
+function touch(r){r.updated=Date.now();r.dirty=1;save();kick()}
+function refreshLog(){if(view==='log'){summary();if(!$('list').contains(document.activeElement))list()}}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(recs))}catch(e){try{localStorage.setItem(KEY,JSON.stringify(recs.map(r=>({...r,thumb:''}))))}catch(e2){}}};
+const fmt=t=>{const d=new Date(t),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())};
+const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function sim(a,b){if(!a||!b)return 0;const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return 1-p[n]/Math.max(m,n)}
+
+/* ---- plate text extraction (Indian format) ---- */
+function extract(txt){
+  const s=norm(txt);
+  for(let len=11;len>=8;len--)for(let i=0;i+len<=s.length;i++){
+    const t=s.slice(i,i+len).split('');
+    [0,1].forEach(k=>t[k]=TA[t[k]]||t[k]);
+    for(let k=t.length-4;k<t.length;k++)t[k]=TD[t[k]]||t[k];
+    t[2]=TD[t[2]]||t[2];
+    const c=t.join('');if(PLATE.test(c)&&STATES.has(c.slice(0,2)))return c;
+  }return '';
+}
+/* ---- OCR engine: loads itself in the background, retries automatically ---- */
+function setOcr(t,c){const e=$('ocr');e.textContent=t;e.className='chip '+c}
+const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
+async function makeWorker(){
+  if(!window.Tesseract)for(const u of ['https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js','https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js']){try{await loadScript(u);if(window.Tesseract)break}catch(e){}}
+  if(!window.Tesseract)throw 0;
+  const w=await Tesseract.createWorker('eng');
+  await w.setParameters({tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});return w;
+}
+function ensure(){
+  if(ocrP)return ocrP;
+  setOcr('Reader…','wait');
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  ocrP=makeWorker().then(w=>{worker=w;setOcr('Reader ✓','ok');return w}).catch(e=>{ocrP=null;setOcr('Reader ✗ retry','bad');throw e});
+  return ocrP;
+}
+function autoLoad(){ensure().catch(()=>setTimeout(autoLoad,8000))}
+$('ocr').onclick=()=>{if(!worker)autoLoad()};
+function prep(src,tw){
+  const s=tw/src.width,c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
+  const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+  const d=x.getImageData(0,0,c.width,c.height),a=d.data,h=new Uint32Array(256);
+  for(let i=0;i<a.length;i+=4){const g=(a[i]*.3+a[i+1]*.59+a[i+2]*.11)|0;a[i]=a[i+1]=a[i+2]=g;h[g]++}
+  const n=c.width*c.height;let lo=0,hi=255,acc=0;for(let i=0;i<256;i++){acc+=h[i];if(acc>n*.02){lo=i;break}}acc=0;for(let i=255;i>=0;i--){acc+=h[i];if(acc>n*.02){hi=i;break}}
+  const k=255/Math.max(1,hi-lo);for(let i=0;i<a.length;i+=4){const v=Math.max(0,Math.min(255,(a[i]-lo)*k));a[i]=a[i+1]=a[i+2]=v}
+  x.putImageData(d,0,0);return c;
+}
+async function read(cv,mode){
+  const lower=()=>{const c=document.createElement('canvas');c.width=cv.width;c.height=Math.round(cv.height*.55);c.getContext('2d').drawImage(cv,0,cv.height*.45,cv.width,c.height,0,0,c.width,c.height);return c};
+  const tries=mode==='crop'?[[cv,800,'6'],[cv,800,'7']]:[[cv,1600,'11'],[lower(),1600,'11']];let hint='';
+  for(const [c,tw,psm] of tries){
+    await worker.setParameters({tessedit_pageseg_mode:psm});
+    const r=await worker.recognize(prep(c,tw)),p=extract(r.data.text);
+    if(p)return{plate:p,hint:''};if(!hint)hint=norm(r.data.text).slice(0,12);
+  }return{plate:'',hint};
+}
+async function pump(){
+  if(busy)return;busy=true;
+  while(queue.length){
+    try{await ensure()}catch(e){busy=false;setTimeout(pump,8000);return}
+    const j=queue.shift(),r=recs.find(x=>x.id===j.id);if(!r)continue;
+    r.status='reading';
+    try{const o=await read(j.canvas,j.mode);r.status='done';if(!r.plate){r.plate=o.plate;r.hint=o.hint;r.updated=Date.now();r.dirty=1}
+      $('last').textContent=(o.plate?o.plate:'? unreadable')+' · '+r.type}catch(e){r.status='failed'}
+    save();counts();refreshLog();kick();
+  }busy=false;counts();
+}
+function addRec(cv,mode,t,type){
+  const th=document.createElement('canvas'),s=Math.min(1,110/cv.width);th.width=Math.round(cv.width*s);th.height=Math.round(cv.height*s);
+  th.getContext('2d').drawImage(cv,0,0,th.width,th.height);
+  const r={id:Date.now()+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side,t,type,plate:'',hint:'',status:'queued',thumb:th.toDataURL('image/jpeg',.5),
+    updated:Date.now(),deleted:0,own:true,dirty:1};
+  recs.push(r);queue.push({id:r.id,canvas:cv,mode});save();counts();$('last').textContent='Saved '+type+' · reading in background';pump();
+}
+/* ---- camera ---- */
+function fit(){const v=$('vid');if(!v.videoWidth)return;const ar=v.videoWidth/v.videoHeight,w=Math.min($('vCam').clientWidth,innerHeight*.48*ar),c=$('camwrap');c.style.width=w+'px';c.style.height=(w/ar)+'px'}
+addEventListener('resize',fit);
+$('vid').addEventListener('loadedmetadata',fit);
+async function startCam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
+    $('vid').srcObject=stream;await $('vid').play();fit();$('msg').hidden=true;
+  }catch(e){$('msg').hidden=false;$('msg').textContent='Live camera not available here. Tapping a type button will open the phone camera instead.'}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||stream.getTracks().every(t=>t.readyState==='ended')))startCam()});
+function guide(){const s=$('gs').value/100;$('guide').style.width=(70*s)+'%';$('guide').style.height=(24*s)+'%'}$('gs').oninput=guide;
+function shot(type){
+  const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!stream||!W)return false;
+  const s=$('gs').value/100,gw=.70*s,gh=.24*s,sw=gw*W,sh=gh*H,k=Math.min(1,900/sw),c=document.createElement('canvas');
+  c.width=Math.round(sw*k);c.height=Math.round(sh*k);
+  c.getContext('2d').drawImage(v,(.5-gw/2)*W,(.55-gh/2)*H,sw,sh,0,0,c.width,c.height);
+  addRec(c,'crop',Date.now(),type);
+  $('flash').style.opacity=.7;setTimeout(()=>$('flash').style.opacity=0,120);try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+  return true;
+}
+document.querySelectorAll('.types button').forEach(b=>b.onclick=()=>{if(!shot(b.dataset.t)){pendType=b.dataset.t;$('fCam').click()}});
+async function fromFile(f,cam,type){
+  try{const b=await createImageBitmap(f),s=Math.min(1,2200/Math.max(b.width,b.height)),c=document.createElement('canvas');
+    c.width=Math.round(b.width*s);c.height=Math.round(b.height*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+    addRec(c,'photo',cam?Date.now():(f.lastModified||Date.now()),type)}catch(e){$('last').textContent='Could not open that photo'}
+}
+$('fCam').onchange=e=>{[...e.target.files].forEach(f=>fromFile(f,true,pendType));e.target.value=''};
+$('fGal').onchange=e=>{[...e.target.files].forEach(f=>fromFile(f,false,$('impT').value));e.target.value=''};
+$('undo').onclick=()=>{const r=recs.filter(x=>x.own&&!x.deleted).sort((a,b)=>a.t-b.t).pop();
+  if(r){queue=queue.filter(j=>j.id!==r.id);if(r.status==='queued')r.status='done';r.deleted=1;touch(r);counts();refreshLog();$('last').textContent='Removed last '+r.type}};
+/* ---- UI ---- */
+function counts(){
+  const L=live();$('cIn').textContent=L.filter(r=>r.side==='ENTRY').length;$('cOut').textContent=L.filter(r=>r.side==='EXIT').length;syncChip();
+  $('bIn').className=side==='ENTRY'?'on':'';$('bOut').className=side==='EXIT'?'on':'';
+  const q=recs.filter(r=>r.status==='queued'||r.status==='reading').length;$('qn').textContent=q?q+' reading…':'';
+}
+$('bIn').onclick=()=>{side='ENTRY';counts()};$('bOut').onclick=()=>{side='EXIT';counts()};
+function setView(v){view=v;$('vCam').hidden=v!=='cam';$('vLog').hidden=v!=='log';$('vSet').hidden=v!=='set';
+  $('tCam').className=v==='cam'?'on':'';$('tLog').className=v==='log'?'on':'';$('tSet').className=v==='set'?'on':'';
+  if(v==='log'){summary();list()}else if(v==='set'){$('url').value=cfg.url;setupInfo()}else fit()}
+$('tCam').onclick=()=>setView('cam');$('tLog').onclick=()=>setView('log');$('tSet').onclick=()=>setView('set');
+$('lIn').onclick=()=>{lside='ENTRY';list()};$('lOut').onclick=()=>{lside='EXIT';list()};
+function summary(){
+  const L=live(),f=s=>TYPES.map(t=>t+' '+L.filter(r=>r.side===s&&r.type===t).length).join(' · ');
+  $('sum').textContent='';[['ENTRY',f('ENTRY')],['EXIT',f('EXIT')]].forEach(([a,b])=>{const d=document.createElement('div');d.textContent=a+': '+b;$('sum').append(d)});
+}
+function list(){
+  $('lIn').style.borderColor=lside==='ENTRY'?'var(--in)':'';$('lOut').style.borderColor=lside==='EXIT'?'var(--out)':'';
+  const L=$('list');L.textContent='';
+  live().filter(r=>r.side===lside).sort((a,b)=>b.t-a.t).forEach(r=>{
+    const row=document.createElement('div');row.className='row';
+    const im=r.thumb?Object.assign(document.createElement('img'),{src:r.thumb}):Object.assign(document.createElement('div'),{className:'ph'});
+    const mid=document.createElement('div'),t=document.createElement('div');t.className='t';t.textContent=fmt(r.t).slice(11)+(r.gate?' · Side '+r.gate:'')+(r.own?' · '+r.status:' · other phone')+(r.dirty&&cfg.url?' · unsent':'');
+    const p=document.createElement('input');p.className='plate';p.value=r.plate;p.placeholder=r.hint?('? '+r.hint):'type plate';
+    if(r.plate)p.style.color=PLATE.test(r.plate)?'var(--ok)':'var(--out)';
+    p.onchange=()=>{r.plate=norm(p.value);touch(r);list()};
+    const ty=document.createElement('select');TYPES.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.selected=o===r.type;ty.append(e)});
+    ty.onchange=()=>{r.type=ty.value;touch(r);summary()};
+    mid.append(t,p,ty);
+    const x=document.createElement('button');x.className='x';x.textContent='✕';x.onclick=()=>{queue=queue.filter(j=>j.id!==r.id);if(r.status==='queued')r.status='done';r.deleted=1;touch(r);counts();summary();list()};
+    row.append(im,mid,x);L.append(row);
+  });
+}
+/* ---- matching & export ---- */
+function dedupe(sd){
+  const a=live().filter(r=>r.side===sd).sort((x,y)=>x.t-y.t),out=[];
+  for(const r of a){const o=r.plate&&out.slice().reverse().find(o=>o.plate&&r.t-o.t2<=120000&&sim(o.plate,r.plate)>=.9);if(o){o.t2=r.t;o.n++}else out.push({...r,t2:r.t,n:1})}
+  return out;
+}
+function saveBlob(name,data){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
+$('go').onclick=()=>{
+  const mx=+$('maxm').value,mn=+$('minm').value,en=dedupe('ENTRY'),ex=dedupe('EXIT'),used=new Set(),T=[],LS=[],mE=new Set();
+  for(const e of en){
+    if(!e.plate)continue;let best=null,bs=0;
+    for(const x of ex){if(used.has(x)||!x.plate||x.t<e.t)continue;const s=sim(e.plate,x.plate);if(s>=.85&&s>bs){best=x;bs=s}}
+    if(best){used.add(best);mE.add(e);const m=+((best.t-e.t2)/60000).toFixed(2);
+      (m>=mn&&m<=mx?T:LS).push({'Entry plate':e.plate,'Exit plate':best.plate,'Match %':Math.round(bs*100),'Vehicle type':e.type,'Exit vehicle type':best.type,'Entry time':fmt(e.t),'Exit time':fmt(best.t),'Minutes inside':m})}
+  }
+  const eo=en.filter(e=>e.plate&&!mE.has(e)),xo=ex.filter(x=>x.plate&&!used.has(x));
+  const rowOf=r=>({Side:r.side,Plate:r.plate,'Vehicle type':r.type,Time:fmt(r.t),'Photos merged':r.n});
+  const un=[...en,...ex].filter(r=>!r.plate).map(rowOf);
+  const R=$('res');R.textContent='';
+  const sm=document.createElement('div');sm.style.fontWeight='700';
+  sm.textContent='Transit: '+T.length+' · Long stay/locals: '+LS.length+' · Entry only: '+eo.length+' · Exit only: '+xo.length+' · Unreadable: '+un.length;R.append(sm);
+  if(T.length){const w=document.createElement('div');w.className='scroll';const tb=document.createElement('table'),hr=tb.insertRow();
+    Object.keys(T[0]).forEach(k=>{const th=document.createElement('th');th.textContent=k;hr.append(th)});
+    T.forEach(r=>{const tr=tb.insertRow();Object.values(r).forEach(v=>{tr.insertCell().textContent=v})});w.append(tb);R.append(w)}
+  const sheets={Summary:[{Item:'Entry vehicles',Value:en.length},{Item:'Exit vehicles',Value:ex.length},{Item:'Transit in window',Value:T.length},...TYPES.map(t=>({Item:'  Transit – '+t,Value:T.filter(r=>r['Vehicle type']===t).length})),{Item:'Long stay / locals',Value:LS.length},{Item:'Entry only',Value:eo.length},{Item:'Exit only',Value:xo.length},{Item:'Unreadable plates',Value:un.length},{Item:'Window (min)',Value:mn+'-'+mx}],
+    Transit_in_window:T,Long_stay_locals:LS,Entry_only:eo.map(rowOf),Exit_only:xo.map(rowOf),Unreadable_plates:un,All_entry:en.map(rowOf),All_exit:ex.map(rowOf)};
+  try{
+    if(window.XLSX){const wb=XLSX.utils.book_new();for(const [n,d] of Object.entries(sheets))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.length?d:[{}]),n);saveBlob('toll_audit.xlsx',XLSX.write(wb,{type:'array',bookType:'xlsx'}))}
+    else{const rows=[...T,...LS],h=rows[0]?Object.keys(rows[0]):['none'];saveBlob('toll_audit.csv',[h.join(','),...rows.map(r=>h.map(k=>'"'+r[k]+'"').join(','))].join('\n'))}
+    const ok=document.createElement('div');ok.className='ok';ok.textContent='Downloaded – check your Downloads folder.';R.append(ok);
+  }catch(e){const er=document.createElement('div');er.className='err';er.textContent='Could not create the file.';R.append(er)}
+};
+$('clear').onclick=()=>{const n=recs.filter(r=>r.dirty).length;
+  if(!clearArm){clearArm=true;$('clear').textContent=cfg.url&&n?'Tap again – '+n+' not yet sent will be lost':'Tap again to delete everything on this phone';
+    setTimeout(()=>{clearArm=false;$('clear').textContent='Clear this phone'},4000);return}
+  recs=[];queue=[];if(cfg.url){cfg.url='';cfg.lastSrv=0;saveCfg()}   // disconnect, or the cloud copy would download again
+  save();counts();summary();list();clearArm=false;$('clear').textContent='Clear this phone';
+  $('last').textContent='Phone cleared. The Google Sheet still has its copy; set up a new sheet for a new audit.'};
+
+/* ---- cloud sync with the Google Sheet (Code.gs) ---- */
+let syncing=false,syncErr='',lastOk=0,skew=0,kickT=null;
+function kick(ms){if(!cfg.url)return syncChip();clearTimeout(kickT);kickT=setTimeout(sync,ms==null?1500:ms)}
+const wire=r=>({id:r.id,gate:r.gate||cfg.gate||'',dir:r.side,type:r.type,plate:r.plate||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,
+  thumb:(r.thumb||'').length<45000?(r.thumb||''):''});
+const unsent=()=>recs.filter(r=>r.dirty);
+async function api(body,since){
+  const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),30000);
+  try{const res=await fetch(body?u:u+(u.includes('?')?'&':'?')+'since='+since,body?{method:'POST',body:JSON.stringify(body),signal:ctl.signal}:{signal:ctl.signal});
+    const j=await res.json();if(!j.ok)throw new Error(j.error||'server');return j}finally{clearTimeout(tm)}
+}
+function merge(rs){
+  let ch=0;const by=new Map(recs.map(r=>[r.id,r]));
+  for(const x of rs){
+    if(x.srv>cfg.lastSrv)cfg.lastSrv=x.srv;
+    const l=by.get(x.id),f={gate:x.gate,side:x.dir,type:x.type,plate:x.plate,t:x.t,updated:x.updated,deleted:x.deleted?1:0};
+    if(l){if(x.updated>l.updated){Object.assign(l,f,{dirty:0});if(x.thumb)l.thumb=x.thumb;ch++}}
+    else if(!x.deleted){const r={id:x.id,...f,hint:'',status:'done',thumb:x.thumb||'',own:false,dirty:0};recs.push(r);by.set(r.id,r);ch++}
+  }
+  if(ch)recs.sort((a,b)=>a.t-b.t);return ch;
+}
+async function sync(){
+  if(!cfg.url||syncing)return syncChip();
+  syncing=true;syncChip();
+  try{
+    const out=unsent();
+    for(let i=0;i<out.length;i+=40){
+      const part=out.slice(i,i+40),sent=part.map(r=>r.updated);
+      await api({records:part.map(wire)});
+      part.forEach((r,k)=>{if(r.updated===sent[k])r.dirty=0});save();
+    }
+    const t0=Date.now(),j=await api(null,Math.max(0,cfg.lastSrv-120000));   // 2-min overlap so nothing written mid-read is missed
+    skew=Math.round((t0+Date.now())/2-j.now);
+    const ch=merge(j.records||[]);
+    lastOk=Date.now();syncErr='';save();saveCfg();
+    if(ch){counts();refreshLog()}
+  }catch(e){syncErr=navigator.onLine===false?'No internet – will retry automatically.':'Could not reach the sheet ('+(e.name==='AbortError'?'timed out':e.message||'error')+').'}
+  syncing=false;syncChip();if(view==='set')setupInfo();
+}
+function linkBar(){const l=$('link');if(l){l.hidden=!!(cfg.url&&cfg.gate);l.textContent=cfg.url?'Pick Side A or Side B – tap here':'Link Google Sheet first – tap here'}}
+function syncChip(){linkBar();
+  const e=$('sync');if(!e)return;const n=recs.filter(r=>r.dirty).length;
+  if(!cfg.url){e.textContent='Not linked';e.className='chip bad'}
+  else if(syncing){e.textContent='Syncing…';e.className='chip wait'}
+  else if(syncErr){e.textContent=n?n+' unsent':'Sync ✗';e.className='chip bad'}
+  else if(Math.abs(skew)>60000){e.textContent='Clock off!';e.className='chip bad'}
+  else if(n){e.textContent=n+' to send';e.className='chip wait'}
+  else{e.textContent=lastOk?'Synced ✓':'Cloud…';e.className='chip '+(lastOk?'ok':'wait')}
+}
+function setupInfo(){
+  $('gA').className='sec'+(cfg.gate==='A'?' on':'');$('gB').className='sec'+(cfg.gate==='B'?' on':'');
+  const L=live(),I=$('sInfo');I.textContent='';
+  const line=(txt,cls)=>{const d=document.createElement('div');d.textContent=txt;if(cls)d.className=cls;I.append(d)};
+  line('This phone: '+(cfg.gate?'Side '+cfg.gate:'side not chosen'),cfg.gate?'':'err');
+  line('Google Sheet: '+(cfg.url?'linked':'not linked yet'),cfg.url?'':'err');
+  if(cfg.url){
+    line('Last sync: '+(lastOk?fmt(lastOk).slice(11):'not yet'));
+    line('Waiting to send: '+recs.filter(r=>r.dirty).length);
+    if(syncErr)line(syncErr,'err');
+    if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching times will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
+  }
+  line('Records: Side A '+L.filter(r=>r.gate==='A').length+' · Side B '+L.filter(r=>r.gate==='B').length+(L.some(r=>!r.gate)?' · no side '+L.filter(r=>!r.gate).length:''));
+}
+function setGate(g){cfg.gate=g;saveCfg();if(cfg.url&&$('urlRes').textContent.includes('Now pick'))$('urlRes').textContent='Connected ✓';side=g==='A'?'ENTRY':'EXIT';
+  recs.forEach(r=>{if(r.own&&!r.gate){r.gate=g;r.updated=Date.now();r.dirty=1}});save();counts();setupInfo();kick(300)}
+$('gA').onclick=()=>setGate('A');$('gB').onclick=()=>setGate('B');
+$('syncNow').onclick=()=>{if(cfg.url)sync();else{$('urlRes').className='err';$('urlRes').textContent='Paste the Web app URL first.'}};
+$('link').onclick=()=>setView('set');
+$('sync').onclick=()=>{if(cfg.url&&!syncErr)sync();else setView('set')};
+$('saveUrl').onclick=async()=>{
+  const u=$('url').value.trim(),R=$('urlRes');
+  if(!u){R.className='err';R.textContent='Paste the Web app URL first.';return}
+  if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){R.className='err';R.textContent='That doesn\'t look right. It should start with https://script.google.com/ and end with /exec.';return}
+  R.className='t';R.textContent='Testing…';
+  const prev=cfg.url;cfg.url=u;
+  try{await api(null,Date.now());
+    if(prev!==u){cfg.lastSrv=0;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
+    saveCfg();R.className='ok';R.textContent='Connected ✓'+(cfg.gate?'':' Now pick Side A or Side B below.');sync()}
+  catch(e){cfg.url=prev;R.className='err';R.textContent='Could not reach it. Check the URL, that the deployment says "Who has access: Anyone", and that you have internet.'}
+  setupInfo();
+};
+setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
+addEventListener('online',()=>kick(500));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
+
+counts();startCam();autoLoad();if(cfg.url)kick(500);
+</script></body></html>
