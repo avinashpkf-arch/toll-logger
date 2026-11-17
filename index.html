@@ -140,12 +140,11 @@ input[type=file]{display:none}
 </nav>
 <input type="file" accept="image/*" capture="environment" id="fCam">
 </main>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const KEY='tollLog_v2',TYPES=['Car','LCV','Truck','Bus','MAV'],PLATE=/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/;
 const STATES=new Set('AN AP AR AS BR CH CG DD DL DN GA GJ HP HR JH JK KA KL LA LD MH ML MN MP MZ NL OD OR PB PY RJ SK TN TR TS UK UP WB'.split(' '));
 const TD={O:'0',Q:'0',D:'0',I:'1',L:'1',Z:'2',S:'5',B:'8',G:'6'},TA={'0':'O','1':'I','2':'Z','5':'S','8':'B','6':'G'};
-let recs=[],queue=[],busy=false,side='ENTRY',lside='ENTRY',view='cam',worker=null,ocrP=null,stream=null,pendType='Car',clearArm=false;
+let recs=[],queue=[],busy=false,side='ENTRY',lside='ENTRY',view='cam',stream=null,pendType='Car',clearArm=false;
 const CKEY='tollCfg_v1';let cfg={url:'',gate:'',lastSrv:0};
 try{recs=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
 try{Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
@@ -174,119 +173,103 @@ function extract(txt){
   }return '';
 }
 /* ---- OCR engine: loads itself in the background, retries automatically ---- */
-let ocrSt=['Reader…','wait'];function setOcr(t,c){ocrSt=[t,c];ocrChip()}
-function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google';e.className='chip ok'}else if(fastOk){e.textContent='Reader';e.className='chip ok'}else if(fastOk===null){e.textContent='Loading…';e.className='chip wait'}else{e.textContent=ocrSt[0];e.className='chip '+ocrSt[1]}}
+let ocrSt=['Loading…','wait'];
+function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google';e.className='chip ok'}else if(fastOk){e.textContent='Reader';e.className='chip ok'}else if(fastOk===null){e.textContent='Loading…';e.className='chip wait'}else{e.textContent='Reader off';e.className='chip bad'}}
 const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
-async function makeWorker(){
-  if(!window.Tesseract)for(const u of ['https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js','https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js']){try{await loadScript(u);if(window.Tesseract)break}catch(e){}}
-  if(!window.Tesseract)throw 0;
-  const w=await Tesseract.createWorker('eng');
-  await w.setParameters({tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});return w;
-}
-function ensure(){
-  if(ocrP)return ocrP;
-  setOcr('Reader…','wait');
-  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
-  ocrP=makeWorker().then(w=>{worker=w;setOcr('Reader','ok');return w}).catch(e=>{ocrP=null;setOcr('Reader off','bad');throw e});
-  return ocrP;
-}
-function autoLoad(){ensure().catch(()=>setTimeout(autoLoad,8000))}
-$('ocr').onclick=()=>{if(!fastOk)loadFast();if(!worker)autoLoad()};
-/* ---- image prep for the built-in reader ---- */
-function stretch(src,tw){
-  const s=tw/src.width,c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
-  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
-  const d=x.getImageData(0,0,c.width,c.height),a=d.data,h=new Uint32Array(256);
-  for(let i=0;i<a.length;i+=4){const g=(a[i]*.3+a[i+1]*.59+a[i+2]*.11)|0;a[i]=a[i+1]=a[i+2]=g;h[g]++}
-  const n=c.width*c.height;let lo=0,hi=255,acc=0;for(let i=0;i<256;i++){acc+=h[i];if(acc>n*.02){lo=i;break}}acc=0;for(let i=255;i>=0;i--){acc+=h[i];if(acc>n*.02){hi=i;break}}
-  const k=255/Math.max(1,hi-lo);for(let i=0;i<a.length;i+=4){const v=Math.max(0,Math.min(255,(a[i]-lo)*k));a[i]=a[i+1]=a[i+2]=v}
-  x.putImageData(d,0,0);return c;
-}
-function prep(src,tw,mode){            // n = contrast stretched, b = black/white (Otsu), i = inverted (green EV plates)
-  const c=stretch(src,tw);if(mode==='n')return c;
-  const x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height),a=d.data;
-  if(mode==='i'){for(let i=0;i<a.length;i+=4)a[i]=a[i+1]=a[i+2]=255-a[i]}
-  else{const h=new Float64Array(256),n=a.length/4;for(let i=0;i<a.length;i+=4)h[a[i]]++;
-    let sum=0;for(let t=0;t<256;t++)sum+=t*h[t];let sB=0,wB=0,best=-1,th=128;
-    for(let t=0;t<256;t++){wB+=h[t];if(!wB)continue;const wF=n-wB;if(!wF)break;sB+=t*h[t];const v=wB*wF*(sB/wB-(sum-sB)/wF)**2;if(v>best){best=v;th=t}}
-    for(let i=0;i<a.length;i+=4)a[i]=a[i+1]=a[i+2]=a[i]>th?255:0}
-  x.putImageData(d,0,0);return c;
-}
-async function read(cv,mode){
-  const lower=()=>{const c=document.createElement('canvas');c.width=cv.width;c.height=Math.round(cv.height*.55);c.getContext('2d').drawImage(cv,0,cv.height*.45,cv.width,c.height,0,0,c.width,c.height);return c};
-  const tw=Math.max(1000,Math.min(1600,cv.width));
-  const tries=mode==='crop'?[[cv,'n','7'],[cv,'b','6'],[cv,'n','11'],[cv,'i','7']]:[[cv,'n','11'],[lower(),'n','11'],[cv,'b','11']];let hint='';
-  for(const [c,m,psm] of tries){
-    const r0=recs.find(x=>x.id===readingId);if(r0&&(r0.src==='g'||r0.src==='m'))return null;   // Google already answered
-    await worker.setParameters({tessedit_pageseg_mode:psm});
-    const r=await worker.recognize(prep(c,c===cv?tw:Math.max(1000,Math.min(1600,c.width)),m)),p=extract(r.data.text);
-    if(p)return{plate:p,hint:''};if(!hint)hint=norm(r.data.text).slice(0,12);
-  }return{plate:'',hint};
-}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let readingId=null;
-/* ---- fast plate reader: plate finder (YOLOv9) + plate reader (fast-plate-ocr), run on the phone ---- */
-const ORTV='1.20.1',FAL='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_';let fastP=null,fDet=null,fOcr=null,fastOk=null;
+/* ---- plate reader: plate finder (YOLOv9) + plate reader (fast-plate-ocr XS), run in a background worker ---- */
+const ORT='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/',FAL='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_';
+const WCODE=`let det,ocr;
+self.onmessage=async e=>{const m=e.data;try{
+ if(m.t==='init'){importScripts(m.ort+'ort.min.js');ort.env.wasm.wasmPaths=m.ort;ort.env.wasm.numThreads=1;const o={executionProviders:['wasm']};
+  det=await ort.InferenceSession.create(m.det,o);ocr=await ort.InferenceSession.create(m.ocr,o);postMessage({id:m.id});return}
+ if(m.t==='det'){const out=await det.run({[det.inputNames[0]]:new ort.Tensor('float32',m.x,[1,3,m.s,m.s])}),o=out[det.outputNames[0]];
+  postMessage({id:m.id,d:Float32Array.from(o.data),n:o.dims[0]});return}
+ if(m.t==='ocr'){const out=await ocr.run({[ocr.inputNames[0]]:new ort.Tensor('uint8',m.x,[m.b,64,128,3])}),p=out.plate||out[ocr.outputNames[0]];
+  postMessage({id:m.id,d:Float32Array.from(p.data),dims:p.dims});return}
+}catch(err){postMessage({id:m.id,err:String(err&&err.message||err)})}};`;
+let fw=null,fwq={},fwid=0,fastP=null,fastOk=null;
+function wcall(msg,tr){return new Promise((ok,no)=>{const id=++fwid;fwq[id]={ok,no};fw.postMessage({...msg,id},tr||[])})}
 function loadFast(){
   if(fastP)return fastP;fastOk=null;ocrChip();
   fastP=(async()=>{
-    if(!window.ort)await loadScript('https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORTV+'/dist/ort.min.js');
-    ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORTV+'/dist/';ort.env.wasm.numThreads=1;
-    const o={executionProviders:['wasm']};
-    [fDet,fOcr]=await Promise.all([ort.InferenceSession.create('models/plate_finder.onnx',o),ort.InferenceSession.create('models/plate_reader.onnx',o)]);
+    if(fw)fw.terminate();
+    fw=new Worker(URL.createObjectURL(new Blob([WCODE],{type:'text/javascript'})));
+    fw.onmessage=e=>{const q=fwq[e.data.id];delete fwq[e.data.id];if(q)e.data.err?q.no(new Error(e.data.err)):q.ok(e.data)};
+    fw.onerror=e=>{for(const k in fwq){fwq[k].no(new Error('worker'));delete fwq[k]}};
+    await wcall({t:'init',ort:ORT,det:new URL('models/plate_finder.onnx',location.href).href,ocr:new URL('models/plate_reader.onnx',location.href).href});
     fastOk=true;ocrChip();pump();return true;
-  })().catch(e=>{console.log('fast reader',e);fastP=null;fastOk=false;ocrChip();setTimeout(loadFast,10000);return false});
+  })().catch(e=>{console.log('reader',e);fastP=null;fastOk=false;ocrChip();setTimeout(loadFast,8000);return false});
   return fastP;
 }
 async function fastReady(ms){if(fastOk)return true;return Promise.race([loadFast(),sleep(ms).then(()=>false)])}
+$('ocr').onclick=()=>{if(!fastOk)loadFast()};
 async function fdetect(cv){
   const S=384,W=cv.width,H=cv.height,r=Math.min(S/W,S/H),nw=Math.round(W*r),nh=Math.round(H*r),pw=Math.floor((S-nw)/2),ph=Math.floor((S-nh)/2);
   const c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');x.fillStyle='rgb(114,114,114)';x.fillRect(0,0,S,S);x.drawImage(cv,pw,ph,nw,nh);
   const a=x.getImageData(0,0,S,S).data,A=S*S,f=new Float32Array(3*A);
   for(let i=0;i<A;i++){f[i]=a[i*4]/255;f[A+i]=a[i*4+1]/255;f[2*A+i]=a[i*4+2]/255}
-  const out=await fDet.run({[fDet.inputNames[0]]:new ort.Tensor('float32',f,[1,3,S,S])}),o=out[fDet.outputNames[0]],d=o.data,n=o.dims[0];
-  let best=null;
-  for(let i=0;i<n;i++){const s=d[i*7+6];if(s>0.25&&(!best||s>best.s))best={s,x1:(d[i*7+1]-pw)/r,y1:(d[i*7+2]-ph)/r,x2:(d[i*7+3]-pw)/r,y2:(d[i*7+4]-ph)/r}}
+  const o=await wcall({t:'det',x:f,s:S},[f.buffer]),d=o.d;let best=null;
+  for(let i=0;i<o.n;i++){const s=d[i*7+6];if(s>0.25&&(!best||s>best.s))best={s,x1:(d[i*7+1]-pw)/r,y1:(d[i*7+2]-ph)/r,x2:(d[i*7+3]-pw)/r,y2:(d[i*7+4]-ph)/r}}
   return best;
 }
-function patch(cv,x1,y1,x2,y2){
+function patch(cv,x1,y1,x2,y2){       // 128x64 RGB, plus a black-on-white version (helps yellow and green plates)
   x1=Math.max(0,x1);y1=Math.max(0,y1);x2=Math.min(cv.width,x2);y2=Math.min(cv.height,y2);
   const c=document.createElement('canvas');c.width=128;c.height=64;const x=c.getContext('2d');x.imageSmoothingQuality='high';
   x.drawImage(cv,x1,y1,Math.max(1,x2-x1),Math.max(1,y2-y1),0,0,128,64);
-  const a=x.getImageData(0,0,128,64).data,u=new Uint8Array(128*64*3);for(let i=0,j=0;i<a.length;i+=4){u[j++]=a[i];u[j++]=a[i+1];u[j++]=a[i+2]}return u;
+  const a=x.getImageData(0,0,128,64).data,N=128*64,u=new Uint8Array(N*3),g=new Uint8Array(N*3),gr=new Float32Array(N);
+  let lo=255,hi=0,sum=0;
+  for(let i=0;i<N;i++){u[i*3]=a[i*4];u[i*3+1]=a[i*4+1];u[i*3+2]=a[i*4+2];const v=a[i*4]*.299+a[i*4+1]*.587+a[i*4+2]*.114;gr[i]=v;if(v<lo)lo=v;if(v>hi)hi=v}
+  const k=255/Math.max(1,hi-lo);for(let i=0;i<N;i++){gr[i]=(gr[i]-lo)*k;sum+=gr[i]}
+  const inv=sum/N<110;for(let i=0;i<N;i++){const v=inv?255-gr[i]:gr[i];g[i*3]=g[i*3+1]=g[i*3+2]=v}
+  return[u,g];
 }
-async function fastRead(cv){
-  const b=await fdetect(cv),W=cv.width,H=cv.height,boxes=[];
+/* Indian plate pattern: state(2 letters) district(1-2 digits) series(0-3 letters) number(4 digits), or BH series */
+const STL=[...STATES],DIGI=[0,1,2,3,4,5,6,7,8,9],LETI=[...'ABCDEFGHJKLMNPQRSTUVWXYZ'].map(c=>FAL.indexOf(c)),PADI=36,TPL=[];
+for(const [nd,pn] of [[2,0],[1,-1.5]])for(const [k,pk] of [[2,0],[1,-.5],[0,-1.5],[3,-1.5]])if(2+nd+k+4<=10)TPL.push([['S','S',...Array(nd).fill('D'),...Array(k).fill('L'),'D','D','D','D'],pn+pk]);
+TPL.push([['D','D','B','H','D','D','D','D','L','L'],-1.5]);
+function cdecode(L,off,K){            // L = log-probs, slot i char c at L[off+i*K+c]
+  let ss=-1e9,sv='';for(const st of STL){const v=L[off+FAL.indexOf(st[0])]+L[off+K+FAL.indexOf(st[1])];if(v>ss){ss=v;sv=st}}
+  let best=null;
+  for(const [t,prior] of TPL){let sc=prior,out='';
+    for(let i=0;i<t.length;i++){const c=t[i];if(c==='S')continue;let j;
+      if(c==='D'||c==='L'){const set=c==='D'?DIGI:LETI;j=set[0];for(const q of set)if(L[off+i*K+q]>L[off+i*K+j])j=q}else j=FAL.indexOf(c);
+      sc+=L[off+i*K+j];out+=FAL[j]}
+    for(let i=t.length;i<10;i++)sc+=L[off+i*K+PADI];
+    if(t[0]==='S'){sc+=ss;out=sv+out}
+    if(!best||sc>best[0])best=[sc,out]}
+  return best;
+}
+async function fastRead(frames){
+  const cv=frames[0],b=await fdetect(cv),W=cv.width,H=cv.height,boxes=[];
   if(b){const w=b.x2-b.x1,h=b.y2-b.y1;for(const [fx,fy] of [[0,0],[.04,.08],[.10,.18]])boxes.push([b.x1-w*fx,b.y1-h*fy,b.x2+w*fx,b.y2+h*fy])}
   else boxes.push([0,0,W,H],[W*.08,H*.1,W*.92,H*.9],[W*.15,H*.2,W*.85,H*.8]);   // no plate found: the zoomed box is the plate
-  const B=boxes.length,P=128*64*3,buf=new Uint8Array(B*P);boxes.forEach((bx,i)=>buf.set(patch(cv,...bx),i*P));
-  const out=await fOcr.run({[fOcr.inputNames[0]]:new ort.Tensor('uint8',buf,[B,64,128,3])}),p=out.plate||out[fOcr.outputNames[0]],d=p.data,SL=p.dims[1],K=p.dims[2];
+  const ps=[];for(const f of frames)for(const bx of boxes){const sx=f.width/W,sy=f.height/H;ps.push(...patch(f,bx[0]*sx,bx[1]*sy,bx[2]*sx,bx[3]*sy))}
+  const P=128*64*3,buf=new Uint8Array(ps.length*P);ps.forEach((u,i)=>buf.set(u,i*P));
+  const o=await wcall({t:'ocr',x:buf,b:ps.length},[buf.buffer]),d=o.d,SL=o.dims[1],K=o.dims[2],L=new Float32Array(d.length);
+  for(let i=0;i<d.length;i++)L[i]=Math.log(d[i]+1e-9);
   const votes={};let raw='';
-  for(let i=0;i<B;i++){let s='',conf=1;
-    for(let k=0;k<SL;k++){let m=0,mi=0;for(let c=0;c<K;c++){const v=d[(i*SL+k)*K+c];if(v>m){m=v;mi=c}}conf*=m;if(FAL[mi]!=='_')s+=FAL[mi]}
-    if(!raw)raw=s;const e=extract(s);if(e)votes[e]=(votes[e]||0)+1+conf}
-  const top=Object.entries(votes).sort((x,y)=>y[1]-x[1])[0];
-  return{plate:top?top[0]:'',raw,found:!!b};
+  for(let i=0;i<ps.length;i++){
+    if(!raw){let s='';for(let k=0;k<SL;k++){let mi=0;for(let c=1;c<K;c++)if(d[(i*SL+k)*K+c]>d[(i*SL+k)*K+mi])mi=c;if(mi!==PADI)s+=FAL[mi]}raw=s}
+    const [sc,txt]=cdecode(L,i*SL*K,K);votes[txt]=(votes[txt]||0)+Math.exp(sc/10)}
+  const all=Object.values(votes).reduce((a,v)=>a+v,0),top=Object.entries(votes).sort((x,y)=>y[1]-x[1])[0];
+  const conf=top?top[1]/ps.length:0;              // average per-character certainty across all reads
+  return{plate:conf>0.25?top[0]:'',conf,share:top?top[1]/all:0,raw,found:!!b};
 }
 async function pump(){
   if(busy)return;busy=true;
   while(queue.length){
     const j=queue[0],r=recs.find(x=>x.id===j.id);
     if(!r||r.deleted){queue.shift();continue}
-    if(!j.fast){j.fast=1;                                   // 1) fast reader on the phone
-      if(await fastReady(15000)){r.status='reading';counts();
-        try{const o=await fastRead(j.canvas);
-          if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.hint=''}
-          else if(!r.plate&&o.raw)r.hint=o.raw.slice(0,12)}catch(e){console.log(e)}}}
-    if(r.src==='f'||r.src==='g'||r.src==='m'){queue.shift();r.status='done';save();counts();refreshLog();showLast(r);kick();continue}
-    try{await ensure()}catch(e){                            // 2) backup reader not available
-      if(fastOk){queue.shift();r.status='done';save();counts();refreshLog();showLast(r);continue}
-      busy=false;setTimeout(pump,8000);return}
-    queue.shift();r.status='reading';readingId=r.id;          // 3) backup reader (Tesseract)
-    try{const o=await read(j.canvas,j.mode);r.status='done';
-      if(o&&r.src!=='g'&&r.src!=='m'){if(o.plate&&o.plate!==r.plate){r.plate=o.plate;r.src='t';r.updated=Date.now();r.dirty=1}if(!r.plate&&!r.hint)r.hint=o.hint}
-    }catch(e){r.status='failed'}
-    readingId=null;save();counts();refreshLog();showLast(r);kick();
+    if(!(await fastReady(20000))){busy=false;setTimeout(pump,5000);return}   // reader still downloading
+    queue.shift();
+    if(r.src==='m'||r.src==='g'){r.status='done';continue}
+    r.status='reading';counts();
+    try{const o=await fastRead(j.frames||[j.canvas]);
+      if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.lc=(o.conf<0.6||o.share<0.5)?1:0;r.hint=''}
+      else if(!r.plate)r.hint=o.raw.slice(0,12);
+      r.status='done'}catch(e){console.log(e);r.status='failed'}
+    save();counts();refreshLog();showLast(r);kick();
   }busy=false;counts();
 }
 /* ---- Google reader (Drive OCR through your Apps Script) ---- */
@@ -300,7 +283,7 @@ function gpump(){
         const p=extract(res.text||'');
         if(p&&r.src!=='m'){if(r.plate!==p){r.plate=p;r.updated=Date.now();r.dirty=1}r.src='g';r.hint='';r.status='done'}
         else if(!p&&!r.plate)r.hint=norm(res.text).slice(0,12);
-        if(!worker&&r.status==='queued'){r.status='done';queue=queue.filter(q=>q.id!==r.id)}
+        if(fastOk!==true&&r.status==='queued'&&r.src==='g'){r.status='done';queue=queue.filter(q=>q.id!==r.id)}
         save();counts();refreshLog();showLast(r);kick();
       }catch(e){const m=String(e.message||e);
         if(/is not defined|unknown action/i.test(m)){gOk=false;if(r)r.gdone=1}
@@ -308,12 +291,12 @@ function gpump(){
       finally{gRun--;gpump();ocrChip()}})();
   }
 }
-function addRec(cv,mode,t,type){
+function addRec(cv,mode,t,type,frames){
   const mk=(w,q)=>{const k=Math.min(1,w/cv.width),c=document.createElement('canvas');c.width=Math.round(cv.width*k);c.height=Math.round(cv.height*k);
     const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(cv,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q)};
   const r={id:Date.now()+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side,t,type,plate:'',hint:'',status:'queued',thumb:mk(220,.6),src:'',
     updated:Date.now(),deleted:0,own:true,dirty:1};
-  recs.push(r);lastId=r.id;lastImg=mk(360,.7);queue.push({id:r.id,canvas:cv,mode});save();counts();showLast(r);
+  recs.push(r);lastId=r.id;lastImg=mk(360,.7);queue.push({id:r.id,canvas:cv,mode,frames:frames||[cv]});save();counts();showLast(r);
   if(cfg.url&&gOk!==false)gocr(r.id,mk(1600,.92).split(',')[1]);
   pump();
 }
@@ -321,7 +304,7 @@ let lastImg='';
 function showLast(r){if(!r||r.id!==lastId)return;$('lastbox').hidden=false;if(lastImg)$('lastimg').src=lastImg;
   const P=$('lastp');P.textContent=r.plate||(r.status==='done'||r.gdone?'? not read':'reading…');
   const sm=document.createElement('small');sm.textContent=r.type+', '+(r.side==='ENTRY'?'entry':'exit');P.append(sm);
-  P.style.color=r.plate&&!PLATE.test(r.plate)?'var(--warn)':'var(--ink)';P.style.opacity=r.plate?1:.75;
+  P.style.color=r.plate&&(r.lc||!PLATE.test(r.plate))?'var(--warn)':'var(--ink)';P.style.opacity=r.plate?1:.75;
   $('last').textContent=r.plate?'Last: '+r.plate+', '+r.type:'Reading '+r.type+'…';}
 /* ---- camera ---- */
 let track=null,caps={},zoomHW=false,zoomV=1,torchOn=false,zBusy=false,zWant=null;
@@ -333,7 +316,7 @@ addEventListener('resize',fit);
 $('vid').addEventListener('loadedmetadata',()=>{fit();zinfo()});
 async function startCam(){
   const v=$('vid');
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160},frameRate:{ideal:30}},audio:false})}
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}},audio:false})}
   catch(e){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
     catch(e2){$('msg').hidden=false;$('msg').textContent='Camera blocked. Allow camera for this site in Chrome (lock icon › Permissions), then reload. Tapping a type opens the phone camera instead.';return}}
   track=stream.getVideoTracks()[0];caps=track.getCapabilities?track.getCapabilities():{};
@@ -387,8 +370,8 @@ function shot(type){
   const t=Date.now(),r=cropRect(),fr=[grab(r)];
   $('flash').style.opacity=.6;setTimeout(()=>$('flash').style.opacity=0,110);try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}
   (async()=>{for(let i=0;i<2;i++){await sleep(120);try{fr.push(grab(r))}catch(e){}}
-    let best=fr[0],bs=-1;for(const c of fr){const s=sharp(c);if(s>bs){bs=s;best=c}}
-    addRec(best,'crop',t,type)})();
+    const sc=fr.map(c=>[sharp(c),c]).sort((x,y)=>y[0]-x[0]).map(x=>x[1]);   // sharpest first; all three are read
+    addRec(sc[0],'crop',t,type,sc)})();
   return true;
 }
 document.querySelectorAll('.types button').forEach(b=>b.onclick=()=>{if(!shot(b.dataset.t)){pendType=b.dataset.t;$('fCam').click()}});
@@ -426,8 +409,8 @@ function list(){
     const im=r.thumb?Object.assign(document.createElement('img'),{src:r.thumb}):Object.assign(document.createElement('div'),{className:'ph'});
     const mid=document.createElement('div'),t=document.createElement('div');t.className='t';t.textContent=fmt(r.t).slice(11)+(r.gate?' · Side '+r.gate:'')+(r.own?' · '+r.status:' · other phone')+(r.dirty&&cfg.url?' · unsent':'');
     const p=document.createElement('input');p.className='plate';p.value=r.plate;p.placeholder=r.hint?('? '+r.hint):'type plate';
-    if(r.plate)p.style.color=PLATE.test(r.plate)?'var(--ink)':'var(--warn)';
-    p.onchange=()=>{r.plate=norm(p.value);r.src='m';touch(r);list()};
+    if(r.plate)p.style.color=PLATE.test(r.plate)&&!r.lc?'var(--ink)':'var(--warn)';
+    p.onchange=()=>{r.plate=norm(p.value);r.src='m';r.lc=0;touch(r);list()};
     const ty=document.createElement('select');TYPES.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.selected=o===r.type;ty.append(e)});
     ty.onchange=()=>{r.type=ty.value;touch(r);summary()};
     mid.append(t,p,ty);
@@ -442,7 +425,8 @@ function dedupe(sd){
   return out;
 }
 function saveBlob(name,data){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
-$('go').onclick=()=>{
+$('go').onclick=async()=>{
+  if(!window.XLSX){$('res').textContent='Preparing Excel…';try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}}
   const mx=+$('maxm').value,mn=+$('minm').value,en=dedupe('ENTRY'),ex=dedupe('EXIT'),used=new Set(),T=[],LS=[],mE=new Set();
   for(const e of en){
     if(!e.plate)continue;let best=null,bs=0;
@@ -561,5 +545,5 @@ setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
 addEventListener('online',()=>kick(500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
 
-counts();startCam();loadFast();setTimeout(autoLoad,6000);if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
+counts();startCam();loadFast();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
 </script></body></html>
