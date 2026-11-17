@@ -32,11 +32,30 @@ function doGet(e) {
     return out_({ok:true, records:recs, now:Date.now()});
   } catch (err) { return out_({ok:false, error:String(err)}); }
 }
+// Google's own text recognition (Drive OCR). Needs: Apps Script editor > Services (+) > Drive API > Add.
+function ocr_(b64) {
+  const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/jpeg', 'plate.jpg');
+  let id;
+  try {        // Drive API v3 (default)
+    id = Drive.Files.create({name: 'toll_ocr_tmp', mimeType: 'application/vnd.google-apps.document'}, blob, {ocrLanguage: 'en', fields: 'id'}).id;
+  } catch (e3) {   // Drive API v2
+    if (!Drive.Files.insert) throw e3;
+    id = Drive.Files.insert({title: 'toll_ocr_tmp', mimeType: 'image/jpeg'}, blob, {ocr: true, ocrLanguage: 'en'}).id;
+  }
+  try { return DocumentApp.openById(id).getBody().getText(); }
+  finally { try { Drive.Files.remove(id); } catch (x) { try { DriveApp.getFileById(id).setTrashed(true); } catch (y) {} } }
+}
 function doPost(e) {
+  let body;
+  try { body = JSON.parse(e.postData.contents); } catch (err) { return out_({ok:false, error:'bad request'}); }
+  if (body.action === 'ocrcheck') return out_({ok:true, drive: typeof Drive !== 'undefined'});
+  if (body.action === 'ocr') {
+    try { return out_({ok:true, text: ocr_(body.image)}); } catch (err) { return out_({ok:false, error:'ocr: ' + err}); }
+  }
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(25000);
-    const body = JSON.parse(e.postData.contents), s = sh_(), n = s.getLastRow(), now = Date.now();
+    const s = sh_(), n = s.getLastRow(), now = Date.now();
     const old = n > 1 ? s.getRange(2, 1, n - 1, HEAD.length).getValues() : [];
     const idx = {}; old.forEach((r, i) => idx[String(r[0])] = i);
     const add = [], addIdx = {}; let changed = 0;

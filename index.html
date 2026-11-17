@@ -20,16 +20,23 @@ input.url{width:100%;font:inherit;padding:9px;border:1px solid var(--line);borde
 .tabs{display:grid;grid-template-columns:1fr 1fr 1fr;margin:10px 0;border-bottom:2px solid var(--line)}
 .tabs button{padding:10px;color:var(--mute);border-radius:0;border-bottom:3px solid transparent;margin-bottom:-2px}
 .tabs button.on{color:var(--text);border-color:var(--text)}
-#camwrap{position:relative;margin:0 auto;background:#000;border-radius:14px;overflow:hidden;width:100%;aspect-ratio:16/9}
-#vid{width:100%;height:100%;display:block;object-fit:fill}
-#guide{position:absolute;left:50%;top:55%;width:70%;height:24%;transform:translate(-50%,-50%);border:3px solid #ffd400;border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.42);pointer-events:none}
+#camwrap{position:relative;margin:0 -10px;background:#000;overflow:hidden;height:60vh;min-height:300px;touch-action:none}
+#vid{width:100%;height:100%;display:block;object-fit:cover;transform-origin:50% 50%}
+#guide{position:absolute;left:50%;top:50%;width:86%;height:30%;transform:translate(-50%,-50%);border:3px solid #ffd400;border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.30);pointer-events:none}
+#zoom{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:0 8px}
+#zoom button{min-width:54px;height:44px;border-radius:22px;background:rgba(0,0,0,.55);color:#fff;font-size:16px;border:2px solid rgba(255,255,255,.35)}
+#zoom button.on{background:#ffd400;color:#000;border-color:#ffd400}
+#zinfo{position:absolute;right:10px;bottom:64px;color:#fff;background:rgba(0,0,0,.55);padding:4px 10px;border-radius:12px;font-size:13px;font-weight:700}
+#lastbox{position:absolute;left:10px;top:10px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.65);color:#fff;padding:6px 10px 6px 6px;border-radius:12px;max-width:calc(100% - 110px)}
+#lastimg{height:46px;max-width:150px;border-radius:6px;display:block;background:#333}
+#lastp{font:800 22px/1.1 Calibri,system-ui,sans-serif;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#lastp small{display:block;font-size:12px;font-weight:600;letter-spacing:0;opacity:.85}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
 #msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px;font-size:14px}
 .bar{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px;color:var(--mute)}
 .bar .last{flex:1;font-weight:700;color:var(--text);min-height:20px}
 .bar button{padding:7px 12px;border:1px solid var(--line);background:var(--card);font-size:13px}
 .types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-.types button{height:74px;color:#fff;font-size:15px;letter-spacing:.3px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.types button{height:78px;color:#fff;font-size:15px;letter-spacing:.3px;box-shadow:0 2px 0 rgba(0,0,0,.25)}
 .types button:active{transform:translateY(2px);box-shadow:none;filter:brightness(.9)}
 [data-t=Car]{background:#2563eb}[data-t=LCV]{background:#0d9488}[data-t=Truck]{background:#d97706}[data-t=Bus]{background:#7c3aed}[data-t=MAV]{background:#dc2626}
 .hint{text-align:center;color:var(--mute);font-size:12px;margin-top:8px}
@@ -55,10 +62,12 @@ input[type=file]{display:none}
 
 <section id="vCam">
  <button id="link" class="pri" style="margin:0 0 8px;background:var(--bad)" hidden>Link Google Sheet first – tap here</button>
- <div id="camwrap"><video id="vid" playsinline muted autoplay></video><div id="guide"></div><div id="flash"></div><div id="msg">Starting camera…</div></div>
+ <div id="camwrap"><video id="vid" playsinline muted autoplay></video><div id="guide"></div><div id="flash"></div>
+  <div id="lastbox" hidden><img id="lastimg" alt=""><div id="lastp"></div></div><div id="zinfo" hidden></div>
+  <div id="zoom"></div><div id="msg">Starting camera…</div></div>
  <div class="bar"><span class="last" id="last"></span><span id="qn"></span><button id="undo">Undo</button></div>
  <div class="types"><button data-t="Car">CAR</button><button data-t="LCV">LCV</button><button data-t="Truck">TRUCK</button><button data-t="Bus">BUS</button><button data-t="MAV">MAV</button></div>
- <div class="hint">Plate inside the yellow box, then tap the vehicle type. One tap = photo + type.<br>Box size <input type="range" id="gs" min="40" max="100" value="70" style="vertical-align:middle"></div>
+ <div class="hint">Zoom in until the plate fills the yellow box, then tap the type. Pinch to zoom works too. · Box <input type="range" id="gs" min="40" max="100" value="100" style="vertical-align:middle;width:90px"></div>
 </section>
 
 <section id="vLog" hidden>
@@ -121,7 +130,8 @@ function extract(txt){
   }return '';
 }
 /* ---- OCR engine: loads itself in the background, retries automatically ---- */
-function setOcr(t,c){const e=$('ocr');e.textContent=t;e.className='chip '+c}
+let ocrSt=['Reader…','wait'];function setOcr(t,c){ocrSt=[t,c];ocrChip()}
+function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google ✓';e.className='chip ok'}else{e.textContent=ocrSt[0];e.className='chip '+ocrSt[1]}}
 const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
 async function makeWorker(){
   if(!window.Tesseract)for(const u of ['https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js','https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js']){try{await loadScript(u);if(window.Tesseract)break}catch(e){}}
@@ -138,61 +148,153 @@ function ensure(){
 }
 function autoLoad(){ensure().catch(()=>setTimeout(autoLoad,8000))}
 $('ocr').onclick=()=>{if(!worker)autoLoad()};
-function prep(src,tw){
+/* ---- image prep for the built-in reader ---- */
+function stretch(src,tw){
   const s=tw/src.width,c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
-  const x=c.getContext('2d');x.drawImage(src,0,0,c.width,c.height);
+  const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(src,0,0,c.width,c.height);
   const d=x.getImageData(0,0,c.width,c.height),a=d.data,h=new Uint32Array(256);
   for(let i=0;i<a.length;i+=4){const g=(a[i]*.3+a[i+1]*.59+a[i+2]*.11)|0;a[i]=a[i+1]=a[i+2]=g;h[g]++}
   const n=c.width*c.height;let lo=0,hi=255,acc=0;for(let i=0;i<256;i++){acc+=h[i];if(acc>n*.02){lo=i;break}}acc=0;for(let i=255;i>=0;i--){acc+=h[i];if(acc>n*.02){hi=i;break}}
   const k=255/Math.max(1,hi-lo);for(let i=0;i<a.length;i+=4){const v=Math.max(0,Math.min(255,(a[i]-lo)*k));a[i]=a[i+1]=a[i+2]=v}
   x.putImageData(d,0,0);return c;
 }
+function prep(src,tw,mode){            // n = contrast stretched, b = black/white (Otsu), i = inverted (green EV plates)
+  const c=stretch(src,tw);if(mode==='n')return c;
+  const x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height),a=d.data;
+  if(mode==='i'){for(let i=0;i<a.length;i+=4)a[i]=a[i+1]=a[i+2]=255-a[i]}
+  else{const h=new Float64Array(256),n=a.length/4;for(let i=0;i<a.length;i+=4)h[a[i]]++;
+    let sum=0;for(let t=0;t<256;t++)sum+=t*h[t];let sB=0,wB=0,best=-1,th=128;
+    for(let t=0;t<256;t++){wB+=h[t];if(!wB)continue;const wF=n-wB;if(!wF)break;sB+=t*h[t];const v=wB*wF*(sB/wB-(sum-sB)/wF)**2;if(v>best){best=v;th=t}}
+    for(let i=0;i<a.length;i+=4)a[i]=a[i+1]=a[i+2]=a[i]>th?255:0}
+  x.putImageData(d,0,0);return c;
+}
 async function read(cv,mode){
   const lower=()=>{const c=document.createElement('canvas');c.width=cv.width;c.height=Math.round(cv.height*.55);c.getContext('2d').drawImage(cv,0,cv.height*.45,cv.width,c.height,0,0,c.width,c.height);return c};
-  const tries=mode==='crop'?[[cv,800,'6'],[cv,800,'7']]:[[cv,1600,'11'],[lower(),1600,'11']];let hint='';
-  for(const [c,tw,psm] of tries){
+  const tw=Math.max(1000,Math.min(1600,cv.width));
+  const tries=mode==='crop'?[[cv,'n','7'],[cv,'b','6'],[cv,'n','11'],[cv,'i','7']]:[[cv,'n','11'],[lower(),'n','11'],[cv,'b','11']];let hint='';
+  for(const [c,m,psm] of tries){
+    const r0=recs.find(x=>x.id===readingId);if(r0&&(r0.src==='g'||r0.src==='m'))return null;   // Google already answered
     await worker.setParameters({tessedit_pageseg_mode:psm});
-    const r=await worker.recognize(prep(c,tw)),p=extract(r.data.text);
+    const r=await worker.recognize(prep(c,c===cv?tw:Math.max(1000,Math.min(1600,c.width)),m)),p=extract(r.data.text);
     if(p)return{plate:p,hint:''};if(!hint)hint=norm(r.data.text).slice(0,12);
   }return{plate:'',hint};
 }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let readingId=null;
 async function pump(){
   if(busy)return;busy=true;
   while(queue.length){
     try{await ensure()}catch(e){busy=false;setTimeout(pump,8000);return}
-    const j=queue.shift(),r=recs.find(x=>x.id===j.id);if(!r)continue;
-    r.status='reading';
-    try{const o=await read(j.canvas,j.mode);r.status='done';if(!r.plate){r.plate=o.plate;r.hint=o.hint;r.updated=Date.now();r.dirty=1}
-      $('last').textContent=(o.plate?o.plate:'? unreadable')+' · '+r.type}catch(e){r.status='failed'}
-    save();counts();refreshLog();kick();
+    const j=queue.shift(),r=recs.find(x=>x.id===j.id);if(!r||r.deleted)continue;
+    for(let k=0;k<40&&gOk&&!r.gdone;k++)await sleep(200);       // give Google up to 8 s first
+    if(r.src==='g'||r.src==='m'){r.status='done';save();counts();continue}
+    r.status='reading';readingId=r.id;
+    try{const o=await read(j.canvas,j.mode);r.status='done';
+      if(o&&r.src!=='g'&&r.src!=='m'){if(o.plate&&o.plate!==r.plate){r.plate=o.plate;r.src='t';r.updated=Date.now();r.dirty=1}if(!r.plate&&!r.hint)r.hint=o.hint}
+      showLast(r)}catch(e){r.status='failed'}
+    readingId=null;save();counts();refreshLog();kick();
   }busy=false;counts();
 }
-function addRec(cv,mode,t,type){
-  const th=document.createElement('canvas'),s=Math.min(1,110/cv.width);th.width=Math.round(cv.width*s);th.height=Math.round(cv.height*s);
-  th.getContext('2d').drawImage(cv,0,0,th.width,th.height);
-  const r={id:Date.now()+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side,t,type,plate:'',hint:'',status:'queued',thumb:th.toDataURL('image/jpeg',.5),
-    updated:Date.now(),deleted:0,own:true,dirty:1};
-  recs.push(r);queue.push({id:r.id,canvas:cv,mode});save();counts();$('last').textContent='Saved '+type+' · reading in background';pump();
+/* ---- Google reader (Drive OCR through your Apps Script) ---- */
+let gOk=null,gRun=0,lastId=null;const gq=[];
+function gocr(id,jpeg){if(!cfg.url||gOk===false)return;gq.push({id,jpeg,n:0});gpump()}
+function gpump(){
+  while(gRun<3&&gq.length){const j=gq.shift();gRun++;
+    (async()=>{const r=recs.find(x=>x.id===j.id);
+      try{if(!r||r.deleted)return;
+        const res=await api({action:'ocr',image:j.jpeg});gOk=true;r.gdone=1;
+        const p=extract(res.text||'');
+        if(p&&r.src!=='m'){if(r.plate!==p){r.plate=p;r.updated=Date.now();r.dirty=1}r.src='g';r.hint='';r.status='done'}
+        else if(!p&&!r.plate)r.hint=norm(res.text).slice(0,12);
+        if(!worker&&r.status==='queued'){r.status='done';queue=queue.filter(q=>q.id!==r.id)}
+        save();counts();refreshLog();showLast(r);kick();
+      }catch(e){const m=String(e.message||e);
+        if(/is not defined|unknown action/i.test(m)){gOk=false;if(r)r.gdone=1}
+        else if(j.n<2){j.n++;setTimeout(()=>{gq.push(j);gpump()},4000)}else if(r)r.gdone=1}
+      finally{gRun--;gpump();ocrChip()}})();
+  }
 }
+function addRec(cv,mode,t,type){
+  const mk=(w,q)=>{const k=Math.min(1,w/cv.width),c=document.createElement('canvas');c.width=Math.round(cv.width*k);c.height=Math.round(cv.height*k);
+    const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(cv,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q)};
+  const r={id:Date.now()+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side,t,type,plate:'',hint:'',status:'queued',thumb:mk(220,.6),src:'',
+    updated:Date.now(),deleted:0,own:true,dirty:1};
+  recs.push(r);lastId=r.id;lastImg=mk(360,.7);queue.push({id:r.id,canvas:cv,mode});save();counts();showLast(r);
+  if(cfg.url&&gOk!==false)gocr(r.id,mk(1600,.92).split(',')[1]);
+  pump();
+}
+let lastImg='';
+function showLast(r){if(!r||r.id!==lastId)return;$('lastbox').hidden=false;if(lastImg)$('lastimg').src=lastImg;
+  const P=$('lastp');P.textContent=r.plate||(r.status==='done'||r.gdone?'? not read':'reading…');
+  const sm=document.createElement('small');sm.textContent=r.type+' · '+r.side+(r.plate&&r.src==='g'?' · Google':'');P.append(sm);
+  P.style.color=r.plate?(PLATE.test(r.plate)?'#4ade80':'#fbbf24'):'#fff';
+  $('last').textContent=r.plate?'Last: '+r.plate+' ('+r.type+')':'';}
 /* ---- camera ---- */
-function fit(){const v=$('vid');if(!v.videoWidth)return;const ar=v.videoWidth/v.videoHeight,w=Math.min($('vCam').clientWidth,innerHeight*.48*ar),c=$('camwrap');c.style.width=w+'px';c.style.height=(w/ar)+'px'}
+let track=null,caps={},zoomHW=false,zoomV=1,torchOn=false,zBusy=false,zWant=null;
+function fit(){
+  if(view!=='cam')return;const w=$('camwrap'),top=w.getBoundingClientRect().top,below=$('vCam').getBoundingClientRect().bottom-w.getBoundingClientRect().bottom;
+  w.style.height=Math.max(280,Math.round(innerHeight-top-below-12))+'px';
+}
 addEventListener('resize',fit);
-$('vid').addEventListener('loadedmetadata',fit);
+$('vid').addEventListener('loadedmetadata',()=>{fit();zinfo()});
 async function startCam(){
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
-    $('vid').srcObject=stream;await $('vid').play();fit();$('msg').hidden=true;
-  }catch(e){$('msg').hidden=false;$('msg').textContent='Live camera not available here. Tapping a type button will open the phone camera instead.'}
+  const v=$('vid');
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160},frameRate:{ideal:30}},audio:false})}
+  catch(e){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
+    catch(e2){$('msg').hidden=false;$('msg').textContent='Camera blocked. Allow camera for this site in Chrome (lock icon › Permissions), then reload. Tapping a type opens the phone camera instead.';return}}
+  track=stream.getVideoTracks()[0];caps=track.getCapabilities?track.getCapabilities():{};
+  try{if(caps.focusMode&&caps.focusMode.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
+  zoomHW=!!(caps.zoom&&caps.zoom.max>1);buildZoom();
+  v.srcObject=stream;try{await v.play()}catch(e){}
+  fit();$('msg').hidden=true;zinfo();
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||stream.getTracks().every(t=>t.readyState==='ended')))startCam()});
-function guide(){const s=$('gs').value/100;$('guide').style.width=(70*s)+'%';$('guide').style.height=(24*s)+'%'}$('gs').oninput=guide;
+function zmax(){return zoomHW?caps.zoom.max:4}
+function zmin(){return zoomHW?(caps.zoom.min||1):1}
+function buildZoom(){
+  const Z=$('zoom');Z.textContent='';
+  const lv=(zoomHW?[1,2,3,5,8,10]:[1,1.5,2,3,4]).filter(z=>z>=zmin()&&z<=zmax());
+  if(zoomHW&&!lv.includes(zmax())&&zmax()<=12)lv.push(zmax());
+  lv.forEach(z=>{const b=document.createElement('button');b.textContent=(Math.round(z*10)/10)+'×';b.dataset.z=z;b.onclick=()=>setZoom(z);Z.append(b)});
+  if(caps.torch){const b=document.createElement('button');b.id='torch';b.textContent='🔦';b.onclick=async()=>{torchOn=!torchOn;try{await track.applyConstraints({advanced:[{torch:torchOn}]})}catch(e){torchOn=false}b.className=torchOn?'on':''};Z.append(b)}
+  markZoom();
+}
+function markZoom(){document.querySelectorAll('#zoom button[data-z]').forEach(b=>b.className=Math.abs(+b.dataset.z-zoomV)<.05?'on':'')}
+async function setZoom(z){
+  z=Math.max(zmin(),Math.min(zmax(),z));zoomV=z;markZoom();zinfo();
+  if(!zoomHW){$('vid').style.transform=z>1?'scale('+z+')':'';return}
+  zWant=z;if(zBusy)return;zBusy=true;
+  while(zWant!=null){const w=zWant;zWant=null;try{await track.applyConstraints({advanced:[{zoom:w}]})}catch(e){}}
+  zBusy=false;
+}
+function zinfo(){const v=$('vid'),e=$('zinfo');if(!v.videoWidth)return;e.hidden=false;e.textContent=(Math.round(zoomV*10)/10)+'× · '+Math.min(v.videoWidth,v.videoHeight)+'p'+(zoomHW?'':' (digital)')}
+let pinch=null;
+$('camwrap').addEventListener('touchstart',e=>{if(e.touches.length===2){const[a,b]=e.touches;pinch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),z:zoomV}}},{passive:true});
+$('camwrap').addEventListener('touchmove',e=>{if(pinch&&e.touches.length===2){const[a,b]=e.touches;setZoom(pinch.z*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/pinch.d)}},{passive:true});
+$('camwrap').addEventListener('touchend',()=>{pinch=null});
+function guide(){const s=$('gs').value/100;$('guide').style.width=(86*s)+'%';$('guide').style.height=(30*s)+'%'}$('gs').oninput=guide;
+function cropRect(){   // the yellow box, in camera pixels (handles cover-fit and digital zoom)
+  const v=$('vid'),W=v.videoWidth,H=v.videoHeight,vr=v.getBoundingClientRect(),gr=$('guide').getBoundingClientRect();
+  const sc=Math.max(vr.width/W,vr.height/H),ox=vr.left+(vr.width-W*sc)/2,oy=vr.top+(vr.height-H*sc)/2;
+  let x=Math.max(0,(gr.left-ox)/sc),y=Math.max(0,(gr.top-oy)/sc),x2=Math.min(W,(gr.right-ox)/sc),y2=Math.min(H,(gr.bottom-oy)/sc);
+  return{x,y,w:Math.max(8,x2-x),h:Math.max(8,y2-y)};
+}
+function grab(r){const v=$('vid'),k=Math.min(1,1800/r.w),c=document.createElement('canvas');c.width=Math.round(r.w*k);c.height=Math.round(r.h*k);
+  c.getContext('2d').drawImage(v,r.x,r.y,r.w,r.h,0,0,c.width,c.height);return c}
+function sharp(c){   // focus score: variance of the Laplacian on a small grey copy
+  const w=Math.min(360,c.width),h=Math.max(3,Math.round(c.height*w/c.width)),t=document.createElement('canvas');t.width=w;t.height=h;
+  const x=t.getContext('2d');x.drawImage(c,0,0,w,h);const a=x.getImageData(0,0,w,h).data,g=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)g[i]=a[i*4]*.3+a[i*4+1]*.59+a[i*4+2]*.11;
+  let s=0,s2=0,n=0;for(let yy=1;yy<h-1;yy++)for(let xx=1;xx<w-1;xx++){const i=yy*w+xx,l=4*g[i]-g[i-1]-g[i+1]-g[i-w]-g[i+w];s+=l;s2+=l*l;n++}
+  return n?s2/n-(s/n)**2:0;
+}
 function shot(type){
-  const v=$('vid'),W=v.videoWidth,H=v.videoHeight;if(!stream||!W)return false;
-  const s=$('gs').value/100,gw=.70*s,gh=.24*s,sw=gw*W,sh=gh*H,k=Math.min(1,900/sw),c=document.createElement('canvas');
-  c.width=Math.round(sw*k);c.height=Math.round(sh*k);
-  c.getContext('2d').drawImage(v,(.5-gw/2)*W,(.55-gh/2)*H,sw,sh,0,0,c.width,c.height);
-  addRec(c,'crop',Date.now(),type);
-  $('flash').style.opacity=.7;setTimeout(()=>$('flash').style.opacity=0,120);try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+  const v=$('vid');if(!stream||!v.videoWidth)return false;
+  const t=Date.now(),r=cropRect(),fr=[grab(r)];
+  $('flash').style.opacity=.6;setTimeout(()=>$('flash').style.opacity=0,110);try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}
+  (async()=>{for(let i=0;i<2;i++){await sleep(120);try{fr.push(grab(r))}catch(e){}}
+    let best=fr[0],bs=-1;for(const c of fr){const s=sharp(c);if(s>bs){bs=s;best=c}}
+    addRec(best,'crop',t,type)})();
   return true;
 }
 document.querySelectorAll('.types button').forEach(b=>b.onclick=()=>{if(!shot(b.dataset.t)){pendType=b.dataset.t;$('fCam').click()}});
@@ -230,7 +332,7 @@ function list(){
     const mid=document.createElement('div'),t=document.createElement('div');t.className='t';t.textContent=fmt(r.t).slice(11)+(r.gate?' · Side '+r.gate:'')+(r.own?' · '+r.status:' · other phone')+(r.dirty&&cfg.url?' · unsent':'');
     const p=document.createElement('input');p.className='plate';p.value=r.plate;p.placeholder=r.hint?('? '+r.hint):'type plate';
     if(r.plate)p.style.color=PLATE.test(r.plate)?'var(--ok)':'var(--out)';
-    p.onchange=()=>{r.plate=norm(p.value);touch(r);list()};
+    p.onchange=()=>{r.plate=norm(p.value);r.src='m';touch(r);list()};
     const ty=document.createElement('select');TYPES.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.selected=o===r.type;ty.append(e)});
     ty.onchange=()=>{r.type=ty.value;touch(r);summary()};
     mid.append(t,p,ty);
@@ -284,7 +386,7 @@ const wire=r=>({id:r.id,gate:r.gate||cfg.gate||'',dir:r.side,type:r.type,plate:r
   thumb:(r.thumb||'').length<45000?(r.thumb||''):''});
 const unsent=()=>recs.filter(r=>r.dirty);
 async function api(body,since){
-  const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),30000);
+  const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),body&&body.action==='ocr'?45000:30000);
   try{const res=await fetch(body?u:u+(u.includes('?')?'&':'?')+'since='+since,body?{method:'POST',body:JSON.stringify(body),signal:ctl.signal}:{signal:ctl.signal});
     const j=await res.json();if(!j.ok)throw new Error(j.error||'server');return j}finally{clearTimeout(tm)}
 }
@@ -338,9 +440,10 @@ function setupInfo(){
     if(syncErr)line(syncErr,'err');
     if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching times will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
   }
+  if(cfg.url)line('Google plate reader: '+(gOk?'on ✓':gOk===false?'OFF – add Drive API service in Apps Script':'checking…'),gOk?'ok':gOk===false?'err':'');
   line('Records: Side A '+L.filter(r=>r.gate==='A').length+' · Side B '+L.filter(r=>r.gate==='B').length+(L.some(r=>!r.gate)?' · no side '+L.filter(r=>!r.gate).length:''));
 }
-function setGate(g){cfg.gate=g;saveCfg();if(cfg.url&&$('urlRes').textContent.includes('Now pick'))$('urlRes').textContent='Connected ✓';side=g==='A'?'ENTRY':'EXIT';
+function setGate(g){cfg.gate=g;saveCfg();$('urlRes').textContent=$('urlRes').textContent.replace(' Now pick Side A or Side B below.','');side=g==='A'?'ENTRY':'EXIT';
   recs.forEach(r=>{if(r.own&&!r.gate){r.gate=g;r.updated=Date.now();r.dirty=1}});save();counts();setupInfo();kick(300)}
 $('gA').onclick=()=>setGate('A');$('gB').onclick=()=>setGate('B');
 $('syncNow').onclick=()=>{if(cfg.url)sync();else{$('urlRes').className='err';$('urlRes').textContent='Paste the Web app URL first.'}};
@@ -353,8 +456,9 @@ $('saveUrl').onclick=async()=>{
   R.className='t';R.textContent='Testing…';
   const prev=cfg.url;cfg.url=u;
   try{await api(null,Date.now());
+    try{const c=await api({action:'ocrcheck'});gOk=c.drive?true:false}catch(e){gOk=false}ocrChip();
     if(prev!==u){cfg.lastSrv=0;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
-    saveCfg();R.className='ok';R.textContent='Connected ✓'+(cfg.gate?'':' Now pick Side A or Side B below.');sync()}
+    saveCfg();R.className='ok';R.textContent='Connected ✓'+(gOk?' Google plate reader ✓':' – Google plate reader is OFF: add the Drive API service in Apps Script (see SETUP).')+(cfg.gate?'':' Now pick Side A or Side B below.');sync()}
   catch(e){cfg.url=prev;R.className='err';R.textContent='Could not reach it. Check the URL, that the deployment says "Who has access: Anyone", and that you have internet.'}
   setupInfo();
 };
@@ -362,5 +466,5 @@ setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
 addEventListener('online',()=>kick(500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
 
-counts();startCam();autoLoad();if(cfg.url)kick(500);
+counts();startCam();autoLoad();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
 </script></body></html>

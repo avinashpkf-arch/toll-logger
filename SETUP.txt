@@ -2,20 +2,28 @@ ONE-TIME CLOUD SETUP (do this once, on a computer or one phone, with your Google
 
 1. Google Drive > New > Google Sheets. Name it "Toll Audit Live".
 2. In the sheet: Extensions > Apps Script. Delete everything there, paste the contents of Code.gs, click Save.
+   Then turn on Google's plate reader: left side "Services" (+) > "Drive API" > Add.
 3. Click Deploy > New deployment > gear icon > Web app.
      Execute as:        Me
      Who has access:    Anyone
    Click Deploy. When asked, Authorize access (Advanced > "Go to project (unsafe)" > Allow - this is your own script).
 4. Copy the "Web app URL" (ends with /exec).
-5. On BOTH phones: open toll_logger.html (it opens on the live camera). Go to the Setup tab,
+5. On BOTH phones: open https://avinashpkf-arch.github.io/toll-logger/ in Chrome (it opens on the live camera). Go to the Setup tab,
    paste the URL > Save & test. Then on one phone tap "Side A", on the other tap "Side B".
    Side A starts on ENTRY, Side B on EXIT (you can still switch at the top).
 
 ALREADY DEPLOYED AN OLDER Code.gs?
-   Paste the new Code.gs, Save, then Deploy > Manage deployments > pencil icon > Version: "New version" > Deploy.
+   Paste the new Code.gs, Save. Add Services (+) > Drive API if it isn't listed. Then Deploy > Manage deployments > pencil icon > Version: "New version" > Deploy.
    This keeps the same URL. ("New deployment" would give you a new URL.)
+   If Google asks to authorize again (Drive and Docs access for the plate reader), allow it.
 
 Using it
+- Zoom: tap 2x / 3x / 5x (or pinch) until the number plate fills most of the yellow box. At 3 m, 2x-3x is usually right.
+  Bigger plate in the box = far better reading. 🔦 turns on the torch at night (on phones that support it).
+- Each tap takes 3 quick frames and keeps the sharpest. Hold steady for a moment after tapping.
+- The last vehicle's photo and plate show at the top-left of the camera. Green = valid plate, yellow = check it, "? not read" = fix in Log.
+- The "Google ✓" chip means plates are read by Google's text recognition (much more accurate). Photos are put in
+  your own Google Drive for a second and deleted straight away. If it shows "Reader" instead, add the Drive API service.
 - The top-right chip shows sync: "Synced ✓", "3 to send", "Sync ✗" (signal dropped - it retries every 10 seconds),
   or "Clock off!" (phone time is more than a minute out - turn on automatic date & time, or exit times won't match).
 - Each phone sees both sides' vehicles. Plate corrections, type changes and deletions sync both ways.
