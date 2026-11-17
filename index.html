@@ -175,7 +175,7 @@ function extract(txt){
 }
 /* ---- OCR engine: loads itself in the background, retries automatically ---- */
 let ocrSt=['Reader…','wait'];function setOcr(t,c){ocrSt=[t,c];ocrChip()}
-function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google';e.className='chip ok'}else{e.textContent=ocrSt[0];e.className='chip '+ocrSt[1]}}
+function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google';e.className='chip ok'}else if(fastOk){e.textContent='Reader';e.className='chip ok'}else if(fastOk===null){e.textContent='Loading…';e.className='chip wait'}else{e.textContent=ocrSt[0];e.className='chip '+ocrSt[1]}}
 const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
 async function makeWorker(){
   if(!window.Tesseract)for(const u of ['https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js','https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js','https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js']){try{await loadScript(u);if(window.Tesseract)break}catch(e){}}
@@ -191,7 +191,7 @@ function ensure(){
   return ocrP;
 }
 function autoLoad(){ensure().catch(()=>setTimeout(autoLoad,8000))}
-$('ocr').onclick=()=>{if(!worker)autoLoad()};
+$('ocr').onclick=()=>{if(!fastOk)loadFast();if(!worker)autoLoad()};
 /* ---- image prep for the built-in reader ---- */
 function stretch(src,tw){
   const s=tw/src.width,c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
@@ -225,18 +225,68 @@ async function read(cv,mode){
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let readingId=null;
+/* ---- fast plate reader: plate finder (YOLOv9) + plate reader (fast-plate-ocr), run on the phone ---- */
+const ORTV='1.20.1',FAL='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_';let fastP=null,fDet=null,fOcr=null,fastOk=null;
+function loadFast(){
+  if(fastP)return fastP;fastOk=null;ocrChip();
+  fastP=(async()=>{
+    if(!window.ort)await loadScript('https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORTV+'/dist/ort.min.js');
+    ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORTV+'/dist/';ort.env.wasm.numThreads=1;
+    const o={executionProviders:['wasm']};
+    [fDet,fOcr]=await Promise.all([ort.InferenceSession.create('models/plate_finder.onnx',o),ort.InferenceSession.create('models/plate_reader.onnx',o)]);
+    fastOk=true;ocrChip();pump();return true;
+  })().catch(e=>{console.log('fast reader',e);fastP=null;fastOk=false;ocrChip();setTimeout(loadFast,10000);return false});
+  return fastP;
+}
+async function fastReady(ms){if(fastOk)return true;return Promise.race([loadFast(),sleep(ms).then(()=>false)])}
+async function fdetect(cv){
+  const S=384,W=cv.width,H=cv.height,r=Math.min(S/W,S/H),nw=Math.round(W*r),nh=Math.round(H*r),pw=Math.floor((S-nw)/2),ph=Math.floor((S-nh)/2);
+  const c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');x.fillStyle='rgb(114,114,114)';x.fillRect(0,0,S,S);x.drawImage(cv,pw,ph,nw,nh);
+  const a=x.getImageData(0,0,S,S).data,A=S*S,f=new Float32Array(3*A);
+  for(let i=0;i<A;i++){f[i]=a[i*4]/255;f[A+i]=a[i*4+1]/255;f[2*A+i]=a[i*4+2]/255}
+  const out=await fDet.run({[fDet.inputNames[0]]:new ort.Tensor('float32',f,[1,3,S,S])}),o=out[fDet.outputNames[0]],d=o.data,n=o.dims[0];
+  let best=null;
+  for(let i=0;i<n;i++){const s=d[i*7+6];if(s>0.25&&(!best||s>best.s))best={s,x1:(d[i*7+1]-pw)/r,y1:(d[i*7+2]-ph)/r,x2:(d[i*7+3]-pw)/r,y2:(d[i*7+4]-ph)/r}}
+  return best;
+}
+function patch(cv,x1,y1,x2,y2){
+  x1=Math.max(0,x1);y1=Math.max(0,y1);x2=Math.min(cv.width,x2);y2=Math.min(cv.height,y2);
+  const c=document.createElement('canvas');c.width=128;c.height=64;const x=c.getContext('2d');x.imageSmoothingQuality='high';
+  x.drawImage(cv,x1,y1,Math.max(1,x2-x1),Math.max(1,y2-y1),0,0,128,64);
+  const a=x.getImageData(0,0,128,64).data,u=new Uint8Array(128*64*3);for(let i=0,j=0;i<a.length;i+=4){u[j++]=a[i];u[j++]=a[i+1];u[j++]=a[i+2]}return u;
+}
+async function fastRead(cv){
+  const b=await fdetect(cv),W=cv.width,H=cv.height,boxes=[];
+  if(b){const w=b.x2-b.x1,h=b.y2-b.y1;for(const [fx,fy] of [[0,0],[.04,.08],[.10,.18]])boxes.push([b.x1-w*fx,b.y1-h*fy,b.x2+w*fx,b.y2+h*fy])}
+  else boxes.push([0,0,W,H],[W*.08,H*.1,W*.92,H*.9],[W*.15,H*.2,W*.85,H*.8]);   // no plate found: the zoomed box is the plate
+  const B=boxes.length,P=128*64*3,buf=new Uint8Array(B*P);boxes.forEach((bx,i)=>buf.set(patch(cv,...bx),i*P));
+  const out=await fOcr.run({[fOcr.inputNames[0]]:new ort.Tensor('uint8',buf,[B,64,128,3])}),p=out.plate||out[fOcr.outputNames[0]],d=p.data,SL=p.dims[1],K=p.dims[2];
+  const votes={};let raw='';
+  for(let i=0;i<B;i++){let s='',conf=1;
+    for(let k=0;k<SL;k++){let m=0,mi=0;for(let c=0;c<K;c++){const v=d[(i*SL+k)*K+c];if(v>m){m=v;mi=c}}conf*=m;if(FAL[mi]!=='_')s+=FAL[mi]}
+    if(!raw)raw=s;const e=extract(s);if(e)votes[e]=(votes[e]||0)+1+conf}
+  const top=Object.entries(votes).sort((x,y)=>y[1]-x[1])[0];
+  return{plate:top?top[0]:'',raw,found:!!b};
+}
 async function pump(){
   if(busy)return;busy=true;
   while(queue.length){
-    try{await ensure()}catch(e){busy=false;setTimeout(pump,8000);return}
-    const j=queue.shift(),r=recs.find(x=>x.id===j.id);if(!r||r.deleted)continue;
-    for(let k=0;k<40&&gOk&&!r.gdone;k++)await sleep(200);       // give Google up to 8 s first
-    if(r.src==='g'||r.src==='m'){r.status='done';save();counts();continue}
-    r.status='reading';readingId=r.id;
+    const j=queue[0],r=recs.find(x=>x.id===j.id);
+    if(!r||r.deleted){queue.shift();continue}
+    if(!j.fast){j.fast=1;                                   // 1) fast reader on the phone
+      if(await fastReady(15000)){r.status='reading';counts();
+        try{const o=await fastRead(j.canvas);
+          if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.hint=''}
+          else if(!r.plate&&o.raw)r.hint=o.raw.slice(0,12)}catch(e){console.log(e)}}}
+    if(r.src==='f'||r.src==='g'||r.src==='m'){queue.shift();r.status='done';save();counts();refreshLog();showLast(r);kick();continue}
+    try{await ensure()}catch(e){                            // 2) backup reader not available
+      if(fastOk){queue.shift();r.status='done';save();counts();refreshLog();showLast(r);continue}
+      busy=false;setTimeout(pump,8000);return}
+    queue.shift();r.status='reading';readingId=r.id;          // 3) backup reader (Tesseract)
     try{const o=await read(j.canvas,j.mode);r.status='done';
       if(o&&r.src!=='g'&&r.src!=='m'){if(o.plate&&o.plate!==r.plate){r.plate=o.plate;r.src='t';r.updated=Date.now();r.dirty=1}if(!r.plate&&!r.hint)r.hint=o.hint}
-      showLast(r)}catch(e){r.status='failed'}
-    readingId=null;save();counts();refreshLog();kick();
+    }catch(e){r.status='failed'}
+    readingId=null;save();counts();refreshLog();showLast(r);kick();
   }busy=false;counts();
 }
 /* ---- Google reader (Drive OCR through your Apps Script) ---- */
@@ -270,7 +320,7 @@ function addRec(cv,mode,t,type){
 let lastImg='';
 function showLast(r){if(!r||r.id!==lastId)return;$('lastbox').hidden=false;if(lastImg)$('lastimg').src=lastImg;
   const P=$('lastp');P.textContent=r.plate||(r.status==='done'||r.gdone?'? not read':'reading…');
-  const sm=document.createElement('small');sm.textContent=r.type+' · '+r.side+(r.plate&&r.src==='g'?' · Google':'');P.append(sm);
+  const sm=document.createElement('small');sm.textContent=r.type+', '+(r.side==='ENTRY'?'entry':'exit');P.append(sm);
   P.style.color=r.plate&&!PLATE.test(r.plate)?'var(--warn)':'var(--ink)';P.style.opacity=r.plate?1:.75;
   $('last').textContent=r.plate?'Last: '+r.plate+', '+r.type:'Reading '+r.type+'…';}
 /* ---- camera ---- */
@@ -511,5 +561,5 @@ setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
 addEventListener('online',()=>kick(500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
 
-counts();startCam();autoLoad();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
+counts();startCam();loadFast();setTimeout(autoLoad,6000);if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
 </script></body></html>
