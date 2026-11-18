@@ -32,14 +32,16 @@ Chrome menu (⋮) > Install app / Add to Home screen, so it opens like an app.
    - Type the LAST 4 DIGITS of the number plate. It saves by itself on the 4th digit (phone buzzes twice).
    - Fewer than 4 digits on the plate? Type them and press Save.
    - ⌫ removes a digit; hold ⌫ to clear. "Undo last" removes the last saved vehicle.
-   - Same number twice within 2 minutes at the same post: it still saves but warns you, so you can Undo.
+   - The same number in different categories is fine (e.g. Car 1234 and Truck 1234 are different vehicles).
+   - Same number AND same type twice within 2 minutes at one post: it still saves but warns you, so you can Undo.
    - The last 5 entries are listed below; ✕ deletes one. Corrections: Records tab, change the number or type.
 
 4. MATCH AND EXCEL (Records tab, on any phone once all eight have synced)
    - Each detour is matched on its own: LHS Kaniyur entries with LHS Kaniyur exits, LHS LMW with LHS LMW,
      RHS Kaniyur with RHS Kaniyur, RHS Rangaz with RHS Rangaz.
-   - No time limit: each exit is matched with the closest earlier entry at the same detour that has the
-     same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.
+   - No time limit: each exit is matched with the closest earlier entry at the same detour with the same
+     4 digits AND the same vehicle type. Only leftovers are then paired across types (a guide may have tapped
+     the wrong type) – these show "Same type: No". Times are when each phone saved the vehicle.
    - "Also match likely typos" (on by default): one digit wrong or two digits swapped, only for the same
      vehicle type and within 30 minutes, and only after exact matches are taken. Marked "Typo" in the Excel.
    - Match and download Excel. Sheets:

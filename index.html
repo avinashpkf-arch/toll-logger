@@ -158,7 +158,7 @@ label.chk{font-size:17px}label.chk input{width:24px;height:24px}
 <section id="vRec" hidden>
  <div class="card"><h2>Counts</h2><div class="scroll" id="sum"></div></div>
  <div class="card"><h2>Match and export</h2>
-  <div style="font-size:15px">An exit is matched with the closest earlier entry at the same detour that has the same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.</div>
+  <div style="font-size:15px">An exit is matched with the closest earlier entry at the same detour with the same 4 digits and the same vehicle type (different type only as a last resort). Times are when each phone saved the vehicle.</div>
   <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos: one digit wrong or two digits swapped, same vehicle type, within 30 minutes</label>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
  <div class="card"><h2>Records</h2>
@@ -265,11 +265,11 @@ addEventListener('keydown',e=>{if(view!=='count'||e.target.tagName==='INPUT')ret
 function commit(){
   const now=Date.now(),d=entry,mp=myPost();
   const r={id:now+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side:cfg.dir,t:now,type:cfg.type,plate:d,updated:now,deleted:0,own:true,dirty:1};
-  const dup=live().filter(x=>postOf(x)===mp&&digitsOf(x.plate)===d&&now-x.t<120000).pop();
+  const dup=live().filter(x=>postOf(x)===mp&&digitsOf(x.plate)===d&&x.type===r.type&&now-x.t<120000).pop();   // same number in another category is a different vehicle
   recs.push(r);undoStack.push(r.id);save();kick(800);
   entry='';showDigits();buzz([25,40,25]);
   const D=$('display');D.classList.remove('saved');void D.offsetWidth;D.classList.add('saved');
-  if(dup)hint('Saved '+d+' '+r.type+' – same number as '+Math.round((now-dup.t)/1000)+' s ago. Undo if it was entered twice.',true);
+  if(dup)hint('Saved '+d+' '+r.type+' – same number and type as '+Math.round((now-dup.t)/1000)+' s ago. Undo if it was entered twice.',true);
   else hint('Saved '+d+' · '+r.type+'. Next vehicle.');
   showTypes();recent();counts();
 }
@@ -334,15 +334,16 @@ const FUZZY_MIN=30,CLOCK_SLACK=1;   // typo matches only within 30 min; allow 1 
 function matchSide(g,fuzzy){
   const L=live(),E=L.filter(r=>r.gate===g&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===g&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
   const used=new Set(),pairs=[],xm=new Map();
-  const pass=fz=>{for(const x of X){if(xm.has(x))continue;let best=null;
+  const pass=mode=>{for(const x of X){if(xm.has(x))continue;let best=null;   // mode: 'same' exact + same type, 'other' exact + other type, 'typo'
     for(const e of E){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK)continue;      // exit must come after the entry
-      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate));
-      if(fz){if(dd<1||e.type!==x.type||m>FUZZY_MIN)continue}else if(dd!==0)continue;
-      const sc=(e.type===x.type?0:1e6)+Math.abs(m);                                                   // same type first, then the closest earlier entry
+      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate)),st=e.type===x.type;
+      if(mode==='same'?(dd!==0||!st):mode==='other'?(dd!==0||st):(dd<1||!st||m>FUZZY_MIN))continue;
+      const sc=Math.abs(m);                                                                          // the closest earlier entry
       if(!best||sc<best.sc)best={e,dd,sc}}
     if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:best.dd})}}};
-  pass(false);                       // exact numbers first, so a typo never takes another vehicle's match
-  if(fuzzy)pass(true);
+  pass('same');                      // same number and same vehicle type first: a different category is a different vehicle
+  pass('other');                     // then same number, other type (a guide may have tapped the wrong type) – shown as 'Same type: No'
+  if(fuzzy)pass('typo');             // typos last, so a typo never takes another vehicle's match
   const T=pairs.sort((a,b)=>a.e.t-b.e.t);
   return{E,X,T,eOnly:E.filter(e=>!used.has(e)),xOnly:X.filter(x=>!xm.has(x)),em:new Map(T.map(p=>[p.e,p])),xmap:new Map(T.map(p=>[p.x,p]))};
 }
