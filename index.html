@@ -329,15 +329,23 @@ function digitDiff(a,b){                 // 0 = same, 1 = one digit wrong, 2 = t
   if(d.length===2&&d[1]===d[0]+1&&a[d[0]]===b[d[1]]&&a[d[1]]===b[d[0]])return 2;
   return -1;
 }
+function neighbours(n){             // numbers one typo away: [number, 1 = one digit differs | 2 = two neighbours swapped]
+  const out=[];if(n.length!==4)return out;
+  for(let i=0;i<4;i++)for(let c=0;c<10;c++){const ch=String(c);if(ch!==n[i])out.push([n.slice(0,i)+ch+n.slice(i+1),1])}
+  for(let i=0;i<3;i++)if(n[i]!==n[i+1])out.push([n.slice(0,i)+n[i+1]+n[i]+n.slice(i+2),2]);
+  return out;
+}
 const KIND={0:'Exact',1:'Typo – one digit differs',2:'Typo – two digits swapped'};
 const FUZZY_MIN=30,CLOCK_SLACK=1;   // typo matches only within 30 min; allow 1 min for small clock differences between phones
 function matchSide(g,fuzzy){
   const L=live(),E=L.filter(r=>r.gate===g&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===g&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
   const used=new Set(),pairs=[],xm=new Map();
+  const byNum=new Map();for(const e of E){const k=digitsOf(e.plate);if(!byNum.has(k))byNum.set(k,[]);byNum.get(k).push(e)}   // look-up by number: fast even with tens of thousands
   const pass=mode=>{for(const x of X){if(xm.has(x))continue;let best=null;   // mode: 'same' exact + same type, 'other' exact + other type, 'typo'
-    for(const e of E){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK)continue;      // exit must come after the entry
-      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate)),st=e.type===x.type;
-      if(mode==='same'?(dd!==0||!st):mode==='other'?(dd!==0||st):(dd<1||!st||m>FUZZY_MIN))continue;
+    const dx=digitsOf(x.plate),keys=mode==='typo'?neighbours(dx):[[dx,0]];
+    for(const [k,dd] of keys)for(const e of byNum.get(k)||[]){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK)continue;   // exit must come after the entry
+      const st=e.type===x.type;
+      if(mode==='same'?!st:mode==='other'?st:(!st||m>FUZZY_MIN))continue;
       const sc=Math.abs(m);                                                                          // the closest earlier entry
       if(!best||sc<best.sc)best={e,dd,sc}}
     if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:best.dd})}}};
