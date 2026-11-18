@@ -47,11 +47,22 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 #zoom{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 10px}
 #zoom button{min-width:52px;height:42px;border-radius:21px;background:rgba(20,30,26,.6);color:#fff;font-size:15px;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px)}
 #zoom button.on{background:#fff;color:var(--ink);border-color:#fff}
-#zinfo{position:absolute;right:12px;bottom:64px;color:#fff;background:rgba(20,30,26,.6);padding:3px 10px;border-radius:10px;font-size:13px}
+#fpanel{position:absolute;left:10px;right:10px;bottom:62px;background:rgba(20,30,26,.82);color:#fff;border-radius:14px;padding:10px;backdrop-filter:blur(6px)}
+#fpanel .fm{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+#fpanel .fm button{height:40px;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-size:15px}
+#fpanel .fm button.on{background:#fff;color:var(--ink)}#fpanel .fm button:disabled{opacity:.35}
+#fpanel .fr{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:14px}#fpanel input{flex:1;width:auto;accent-color:#fff}
+#fpanel .fn{font-size:13px;opacity:.85;margin-top:8px}
+#fring{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border:2px solid #fff;border-radius:10px;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;transform:scale(1.3)}
+#fring.show{opacity:1;transform:scale(1)}
+#ctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+#ctl button{height:40px;min-width:44px;padding:0 12px;border-radius:20px;background:rgba(20,30,26,.6);color:#fff;font-size:15px;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px)}
+#ctl button.on{background:#fff;color:var(--ink);border-color:#fff}
+#zinfo{color:#fff;background:rgba(20,30,26,.6);padding:2px 8px;border-radius:8px;font-size:12px}
 /* last read, drawn like a number plate */
-#lastbox{position:absolute;left:12px;top:12px;right:12px;display:flex;align-items:center;gap:10px}
-#lastimg{height:48px;max-width:120px;border-radius:6px;display:block;background:#333;border:2px solid #fff}
-#lastp{background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:7px;padding:4px 12px 5px;font:700 23px/1.05 'Atkinson Hyperlegible',system-ui,sans-serif;letter-spacing:1.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 8px rgba(0,0,0,.35);max-width:calc(100% - 132px)}
+#lastbox{position:absolute;left:10px;top:10px;right:112px;display:flex;align-items:center;gap:8px}
+#lastimg{height:44px;max-width:78px;border-radius:6px;display:block;background:#333;border:2px solid #fff}
+#lastp{min-width:0;background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:7px;padding:4px 12px 5px;font:700 21px/1.05 'Atkinson Hyperlegible',system-ui,sans-serif;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 8px rgba(0,0,0,.35);max-width:calc(100% - 86px)}
 #lastp small{display:block;font-size:12px;font-weight:400;letter-spacing:0;color:var(--mute)}
 
 .bar{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:14px;color:var(--mute);min-height:36px}
@@ -103,8 +114,8 @@ input[type=file]{display:none}
  <div class="seg"><button id="bIn" class="on">Entry<b id="cIn">0</b></button><button id="bOut">Exit<b id="cOut">0</b></button></div>
  <button id="link" class="pri alert" hidden>Link Google Sheet first</button>
  <div id="camwrap"><video id="vid" playsinline muted autoplay></video><div id="guide"></div><div id="flash"></div>
-  <div id="lastbox" hidden><img id="lastimg" alt="Last photo"><div id="lastp"></div></div><div id="zinfo" hidden></div><div id="live" hidden></div>
-  <div id="zoom"></div><div id="msg">Starting camera…</div></div>
+  <div id="lastbox" hidden><img id="lastimg" alt="Last photo"><div id="lastp"></div></div><div id="ctl"><div id="zinfo" hidden></div></div><div id="live" hidden></div>
+  <div id="fring"></div><div id="fpanel" hidden><div class="fm"><button data-f="auto">Auto</button><button data-f="lock">Lock</button><button data-f="manual">Manual</button></div><div class="fr" id="frow" hidden><span>Near</span><input type="range" id="fdist" step="any"><span>Far</span></div><div class="fn" id="fnote"></div></div><div id="zoom"></div><div id="msg">Starting camera…</div></div>
  <div class="bar"><span class="last" id="last">Fit the plate in the white box, then tap the vehicle type.</span><span id="qn"></span><button id="undo">Undo</button></div>
  <div class="types">
   <button data-t="Car">Car<span>jeep, van</span></button><button data-t="LCV">LCV<span>light goods</span></button><button data-t="Truck">Truck<span>2 axle</span></button><button data-t="Bus">Bus<span>all buses</span></button><button data-t="MAV">MAV<span>3+ axle</span></button>
@@ -369,7 +380,7 @@ async function startCam(){
   catch(e){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
     catch(e2){$('msg').hidden=false;$('msg').textContent='Camera blocked. Allow camera for this site in Chrome (lock icon › Permissions), then reload. Tapping a type opens the phone camera instead.';return}}
   track=stream.getVideoTracks()[0];caps=track.getCapabilities?track.getCapabilities():{};
-  try{if(caps.focusMode&&caps.focusMode.includes('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
+  await applyFocus(cfg.focus||'auto',true);
   zoomHW=!!(caps.zoom&&caps.zoom.max>1);buildZoom();
   v.srcObject=stream;try{await v.play()}catch(e){}
   fit();$('msg').hidden=true;zinfo();
@@ -382,9 +393,59 @@ function buildZoom(){
   const lv=(zoomHW?[1,2,3,5,8,10]:[1,1.5,2,3,4]).filter(z=>z>=zmin()&&z<=zmax());
   if(zoomHW&&!lv.includes(zmax())&&zmax()<=12)lv.push(zmax());
   lv.forEach(z=>{const b=document.createElement('button');b.textContent=(Math.round(z*10)/10)+'×';b.dataset.z=z;b.onclick=()=>setZoom(z);Z.append(b)});
-  if(caps.torch){const b=document.createElement('button');b.id='torch';b.textContent='🔦';b.onclick=async()=>{torchOn=!torchOn;try{await track.applyConstraints({advanced:[{torch:torchOn}]})}catch(e){torchOn=false}b.className=torchOn?'on':''};Z.append(b)}
+  const K=$('ctl');K.querySelectorAll('button').forEach(b=>b.remove());
+  {const b=document.createElement('button');b.id='fbtn';b.textContent='Focus';b.onclick=()=>{$('fpanel').hidden=!$('fpanel').hidden;focusUI()};K.prepend(b)}
+  if(caps.torch){const b=document.createElement('button');b.id='torch';b.textContent='🔦';b.onclick=async()=>{torchOn=!torchOn;try{await track.applyConstraints({advanced:[{torch:torchOn}]})}catch(e){torchOn=false}b.className=torchOn?'on':''};$('fbtn').after(b)}
   markZoom();
 }
+/* ---- focus: Auto (keeps refocusing), Lock (focus once, then hold), Manual (slider); tap the picture to focus there ---- */
+const fcan=m=>!!(caps.focusMode&&caps.focusMode.includes(m));
+async function applyFocus(mode,quiet){
+  if(!track)return;let ok=true;
+  try{
+    if(mode==='auto'){if(fcan('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});else ok=false}
+    else if(mode==='lock'){
+      if(fcan('single-shot')){await track.applyConstraints({advanced:[{focusMode:'single-shot'}]});await sleep(900)}
+      const d=(track.getSettings()||{}).focusDistance;
+      if(fcan('manual')&&d!=null)await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]});
+      else if(fcan('manual')&&cfg.fdist!=null)await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:cfg.fdist}]});
+      else if(!fcan('single-shot'))ok=false;
+      if(d!=null)cfg.fdist=d;
+    }
+    else if(mode==='manual'){if(fcan('manual')&&caps.focusDistance){const d=cfg.fdist!=null?cfg.fdist:(track.getSettings().focusDistance??caps.focusDistance.min);
+      await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]});cfg.fdist=d}else ok=false}
+  }catch(e){ok=false}
+  if(ok){cfg.focus=mode;saveCfg()}else if(!quiet)$('fnote').textContent='This phone\'s browser doesn\'t allow '+mode+' focus. Tap the picture to refocus instead.';
+  focusUI();return ok;
+}
+function focusUI(){
+  const P=$('fpanel');if(!P)return;const m=cfg.focus||'auto',none=!caps.focusMode||!caps.focusMode.length;
+  P.querySelectorAll('[data-f]').forEach(b=>{b.className=b.dataset.f===m?'on':'';
+    b.disabled=none||(b.dataset.f==='auto'&&!fcan('continuous'))||(b.dataset.f==='lock'&&!fcan('manual')&&!fcan('single-shot'))||(b.dataset.f==='manual'&&!(fcan('manual')&&caps.focusDistance))});
+  const fb=$('fbtn');if(fb)fb.className=m!=='auto'||!P.hidden?'on':'';if(fb)fb.textContent=m==='lock'?'Focus 🔒':m==='manual'?'Focus ✋':'Focus';
+  const R=$('frow'),I=$('fdist');R.hidden=m!=='manual'||!caps.focusDistance;
+  if(caps.focusDistance){I.min=caps.focusDistance.min;I.max=caps.focusDistance.max;I.step=caps.focusDistance.step||'any';if(cfg.fdist!=null)I.value=cfg.fdist}
+  const N=$('fnote');if(!N.dataset.keep)N.textContent=none?'This phone\'s browser doesn\'t let websites control focus. It stays on auto-focus.':
+    m==='lock'?'Focus is held. Tap the picture to refocus on a spot, then it holds again.':m==='manual'?'Slide until the plate area looks sharp.'+(cfg.fdist!=null?' (≈ '+(+cfg.fdist).toFixed(2)+' m)':''):'The camera refocuses by itself. Tap the picture to focus on a spot.';
+}
+document.querySelectorAll('#fpanel [data-f]').forEach(b=>b.onclick=async()=>{const ok=await applyFocus(b.dataset.f);if(ok&&b.dataset.f!=='manual')setTimeout(()=>{$('fpanel').hidden=true;focusUI()},1200)});
+let fdT=null;$('fdist').oninput=e=>{cfg.fdist=+e.target.value;clearTimeout(fdT);fdT=setTimeout(async()=>{try{await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:cfg.fdist}]})}catch(x){}saveCfg();focusUI()},60)};
+async function tapFocus(cx,cy){            // focus on the tapped point, then return to the chosen mode
+  if(!track)return;const v=$('vid'),W=v.videoWidth,H=v.videoHeight,vr=v.getBoundingClientRect(),wr=$('camwrap').getBoundingClientRect();
+  const sc=Math.max(vr.width/W,vr.height/H),ox=vr.left+(vr.width-W*sc)/2,oy=vr.top+(vr.height-H*sc)/2;
+  const x=Math.min(1,Math.max(0,(cx-ox)/(W*sc))),y=Math.min(1,Math.max(0,(cy-oy)/(H*sc)));
+  const R=$('fring');R.style.left=(cx-wr.left)+'px';R.style.top=(cy-wr.top)+'px';R.className='show';setTimeout(()=>R.className='',900);
+  const c={};if(caps.pointsOfInterest!==undefined)c.pointsOfInterest=[{x,y}];
+  if(fcan('single-shot'))c.focusMode='single-shot';else if(fcan('continuous'))c.focusMode='continuous';
+  try{if(Object.keys(c).length)await track.applyConstraints({advanced:[c]})}catch(e){}
+  if((cfg.focus||'auto')==='lock'){await sleep(900);const d=(track.getSettings()||{}).focusDistance;
+    if(d!=null&&fcan('manual')){try{await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]})}catch(e){}cfg.fdist=d;saveCfg()}focusUI()}
+  else if((cfg.focus||'auto')==='auto'&&fcan('continuous')){await sleep(1500);try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}
+}
+let tdown=null;
+$('camwrap').addEventListener('pointerdown',e=>{tdown=e.isPrimary?{x:e.clientX,y:e.clientY,t:Date.now()}:null});
+$('camwrap').addEventListener('pointerup',e=>{if(!tdown||pinch)return;const moved=Math.hypot(e.clientX-tdown.x,e.clientY-tdown.y),dt=Date.now()-tdown.t;tdown=null;
+  if(moved<12&&dt<500&&!e.target.closest('button,#fpanel'))tapFocus(e.clientX,e.clientY)});
 function markZoom(){document.querySelectorAll('#zoom button[data-z]').forEach(b=>b.className=Math.abs(+b.dataset.z-zoomV)<.05?'on':'')}
 async function setZoom(z){
   z=Math.max(zmin(),Math.min(zmax(),z));zoomV=z;markZoom();zinfo();
