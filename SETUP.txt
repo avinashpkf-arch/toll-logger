@@ -31,14 +31,14 @@ Chrome menu (⋮) > Install app / Add to Home screen, so it opens like an app.
    - The last 5 entries are listed below; ✕ deletes one. Corrections: Records tab, change the number or type.
 
 4. MATCH AND EXCEL (Records tab, on any phone once all four have synced)
-   - Set the transit window (default: exits within 15 minutes).
-   - "Also match likely typos" (on by default): matches numbers with one digit wrong or two digits swapped,
-     but only after exact matches are taken. These are marked "Fuzzy" in the Excel so you can check them.
+   - No time limit: each exit is matched with the closest earlier entry on the same side that has the
+     same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.
+   - "Also match likely typos" (on by default): one digit wrong or two digits swapped, only for the same
+     vehicle type and within 30 minutes, and only after exact matches are taken. Marked "Typo" in the Excel.
    - Match and download Excel. Sheets:
-       Summary          – per side: entries, exits, transit (exact / fuzzy / by type), long stay, unmatched
-       A Entry, A Exit, B Entry, B Exit – every vehicle at each post, with its match
-       A Matched, B Matched – transit pairs (entry, exit, minutes, match type, same vehicle type?)
-       Long stay        – same number but outside the window (locals / long stay)
+       Summary          – per side: entries, exits, matched (exact / typo / by type), unmatched
+       A Entry, A Exit, B Entry, B Exit – every vehicle at each post with its time and its match
+       A Matched, B Matched – pairs (entry and exit number, times, match type, same vehicle type?)
        A Unmatched, B Unmatched – entries with no exit and exits with no entry
    - Side A entries are only matched with Side A exits, Side B with Side B.
 

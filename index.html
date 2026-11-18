@@ -157,8 +157,8 @@ label.chk{font-size:17px}label.chk input{width:24px;height:24px}
 <section id="vRec" hidden>
  <div class="card"><h2>Counts</h2><div class="scroll" id="sum"></div></div>
  <div class="card"><h2>Match and export</h2>
-  <div style="font-size:15px">Count as transit if the vehicle exits within <input type="number" id="maxm" value="15" min="1"> min, and after at least <input type="number" id="minm" value="0" min="0"> min.</div>
-  <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos (one digit wrong, or two digits swapped)</label>
+  <div style="font-size:15px">An exit is matched with the closest earlier entry on the same side that has the same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.</div>
+  <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos: one digit wrong or two digits swapped, same vehicle type, within 30 minutes</label>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
  <div class="card"><h2>Records</h2>
   <div class="seg4" id="lseg"><button data-s="A-ENTRY">A Entry</button><button data-s="A-EXIT">A Exit</button><button data-s="B-ENTRY">B Entry</button><button data-s="B-EXIT">B Exit</button></div>
@@ -264,14 +264,17 @@ function commit(){
   const now=Date.now(),d=entry,mp=myPost();
   const r={id:now+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side:cfg.dir,t:now,type:cfg.type,plate:d,updated:now,deleted:0,own:true,dirty:1};
   const dup=live().filter(x=>postOf(x)===mp&&digitsOf(x.plate)===d&&now-x.t<120000).pop();
-  recs.push(r);save();kick(800);
+  recs.push(r);undoStack.push(r.id);save();kick(800);
   entry='';showDigits();buzz([25,40,25]);
   const D=$('display');D.classList.remove('saved');void D.offsetWidth;D.classList.add('saved');
   if(dup)hint('Saved '+d+' '+r.type+' – same number as '+Math.round((now-dup.t)/1000)+' s ago. Undo if it was entered twice.',true);
   else hint('Saved '+d+' · '+r.type+'. Next vehicle.');
   showTypes();recent();counts();
 }
-$('undo').onclick=()=>{const mp=myPost(),r=live().filter(x=>x.own&&postOf(x)===mp).sort((a,b)=>a.t-b.t).pop();
+const undoStack=[];   // ids in the order they were typed on this phone
+$('undo').onclick=()=>{const mp=myPost();let r=null;
+  while(undoStack.length&&!r){const id=undoStack.pop(),x=recs.find(y=>y.id===id);if(x&&!x.deleted)r=x}
+  if(!r)r=live().filter(x=>x.own&&postOf(x)===mp).sort((a,b)=>a.t-b.t).pop();
   if(!r)return hint('Nothing to undo.');r.deleted=1;touch(r);buzz(30);hint('Removed '+digitsOf(r.plate)+' '+r.type+'.');showTypes();recent();counts()};
 function recent(){
   const R=$('recent'),mp=myPost();R.textContent='';
@@ -322,55 +325,53 @@ function digitDiff(a,b){                 // 0 = same, 1 = one digit wrong, 2 = t
   if(d.length===2&&d[1]===d[0]+1&&a[d[0]]===b[d[1]]&&a[d[1]]===b[d[0]])return 2;
   return -1;
 }
-const KIND={0:'Exact',1:'Fuzzy – one digit differs',2:'Fuzzy – two digits swapped'};
-function matchSide(g,mn,mx,fuzzy){
+const KIND={0:'Exact',1:'Typo – one digit differs',2:'Typo – two digits swapped'};
+const FUZZY_MIN=30,CLOCK_SLACK=1;   // typo matches only within 30 min; allow 1 min for small clock differences between phones
+function matchSide(g,fuzzy){
   const L=live(),E=L.filter(r=>r.gate===g&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===g&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
   const used=new Set(),pairs=[],xm=new Map();
-  const pass=(allow,limit)=>{for(const x of X){if(xm.has(x))continue;let best=null;
-    for(const e of E){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<mn||m>limit)continue;
-      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate));if(dd<0||!allow(dd))continue;
-      const sc=dd*10+(e.type===x.type?0:5)-m/1000;   /* ties: earliest entry first (first in, first out) */if(!best||sc<best.sc)best={e,dd,m,sc}}
-    if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:best.dd,m:best.m})}}};
-  pass(d=>d===0,mx);                          // exact numbers first, so a typo never takes another vehicle's match
-  if(fuzzy)pass(d=>d>0,mx);
-  const T=pairs.filter(p=>p.m<=mx).sort((a,b)=>a.e.t-b.e.t);
-  const lsUsed=new Set(),LS=[];               // same number but outside the time window: long stay / locals
-  for(const x of X){if(xm.has(x))continue;const e=E.filter(e=>!used.has(e)&&!lsUsed.has(e)&&e.t<x.t&&digitsOf(e.plate)===digitsOf(x.plate)).pop();
-    if(e){lsUsed.add(e);LS.push({e,x,dd:0,m:(x.t-e.t)/60000});xm.set(x,null)}}
-  return{E,X,T,LS,eOnly:E.filter(e=>!used.has(e)&&!lsUsed.has(e)),xOnly:X.filter(x=>!xm.has(x)),em:new Map([...LS.map(p=>[p.e,{...p,ls:1}]),...T.map(p=>[p.e,p])]),xmap:new Map([...LS.map(p=>[p.x,{...p,ls:1}]),...T.map(p=>[p.x,p])])};
+  const pass=fz=>{for(const x of X){if(xm.has(x))continue;let best=null;
+    for(const e of E){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK)continue;      // exit must come after the entry
+      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate));
+      if(fz){if(dd<1||e.type!==x.type||m>FUZZY_MIN)continue}else if(dd!==0)continue;
+      const sc=(e.type===x.type?0:1e6)+Math.abs(m);                                                   // same type first, then the closest earlier entry
+      if(!best||sc<best.sc)best={e,dd,sc}}
+    if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:best.dd})}}};
+  pass(false);                       // exact numbers first, so a typo never takes another vehicle's match
+  if(fuzzy)pass(true);
+  const T=pairs.sort((a,b)=>a.e.t-b.e.t);
+  return{E,X,T,eOnly:E.filter(e=>!used.has(e)),xOnly:X.filter(x=>!xm.has(x)),em:new Map(T.map(p=>[p.e,p])),xmap:new Map(T.map(p=>[p.x,p]))};
 }
 function saveBlob(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:type||'application/octet-stream'}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
 const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
 $('go').onclick=async()=>{
-  const R=$('res'),mx=+$('maxm').value||15,mn=+$('minm').value||0,fz=$('fuzzy').checked;R.textContent='Matching…';
+  const R=$('res'),fz=$('fuzzy').checked;R.textContent='Matching…';
   if(cfg.url)try{await sync()}catch(e){}
-  const S={A:matchSide('A',mn,mx,fz),B:matchSide('B',mn,mx,fz)};
+  const S={A:matchSide('A',fz),B:matchSide('B',fz)};
   R.textContent='';const tb=document.createElement('table'),h=tb.insertRow();
   ['','Side A','Side B'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
   const add=(lab,f)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;['A','B'].forEach(g=>tr.insertCell().textContent=f(S[g]))};
   add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);
-  add('Transit – exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('Transit – fuzzy',s=>s.T.filter(p=>p.dd>0).length);
-  add('Transit total',s=>s.T.length);add('Long stay / locals',s=>s.LS.length);add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
+  add('Matched – exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('Matched – typo',s=>s.T.filter(p=>p.dd>0).length);
+  add('Matched total',s=>s.T.length);add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
   R.append(tb);
   // ---- Excel ----
-  const tmin=m=>Math.round(m*10)/10;
   const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
-    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Matched':p?(p.ls?'Long stay (outside window)':KIND[p.dd]):'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
-      [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):'','Minutes':p?tmin(p.m):''}});
+    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
+      [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):''}});
   const pairRows=(g,list)=>list.map(p=>({'Side':g,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
-    'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t),'Minutes':tmin(p.m)}));
+    'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t)}));
   const onlyRows=(g,s)=>[...s.eOnly.map(r=>({'Side':g,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type})),
     ...s.xOnly.map(r=>({'Side':g,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type}))].sort((a,b)=>a.Time<b.Time?-1:1);
   const summ=[];const sr=(k,f)=>summ.push({'':k,'Side A':f(S.A),'Side B':f(S.B),'Total':f(S.A)+f(S.B)});
   sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
   sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
-  sr('Transit – exact match',s=>s.T.filter(p=>p.dd===0).length);
-  sr('Transit – fuzzy match',s=>s.T.filter(p=>p.dd>0).length);sr('Transit total',s=>s.T.length);
-  TYPES.forEach(t=>sr('   Transit – '+t,s=>s.T.filter(p=>p.e.type===t).length));
-  sr('Long stay / locals (same number, outside window)',s=>s.LS.length);sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
-  summ.push({},{'':'Transit window','Side A':mn+'–'+mx+' min'},{'':'Fuzzy matching','Side A':fz?'On (one digit wrong or two swapped)':'Off'},{'':'Created','Side A':fmt(Date.now())});
+  sr('Matched – exact number',s=>s.T.filter(p=>p.dd===0).length);
+  sr('Matched – likely typo',s=>s.T.filter(p=>p.dd>0).length);sr('Matched total (transit)',s=>s.T.length);
+  TYPES.forEach(t=>sr('   Matched – '+t,s=>s.T.filter(p=>p.e.type===t).length));sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
+  summ.push({},{'':'Typo matching','Side A':fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created','Side A':fmt(Date.now())});
   const sheets={'Summary':summ,'A Entry':stationRows(S.A,S.A.E,true),'A Exit':stationRows(S.A,S.A.X,false),'B Entry':stationRows(S.B,S.B.E,true),'B Exit':stationRows(S.B,S.B.X,false),
-    'A Matched':pairRows('A',S.A.T),'B Matched':pairRows('B',S.B.T),'Long stay':[...pairRows('A',S.A.LS),...pairRows('B',S.B.LS)],'A Unmatched':onlyRows('A',S.A),'B Unmatched':onlyRows('B',S.B)};
+    'A Matched':pairRows('A',S.A.T),'B Matched':pairRows('B',S.B.T),'A Unmatched':onlyRows('A',S.A),'B Unmatched':onlyRows('B',S.B)};
   const msg=(t,c)=>{const d=document.createElement('div');d.className=c;d.style.marginTop='8px';d.textContent=t;R.append(d)};
   if(!window.XLSX)try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}
   try{
