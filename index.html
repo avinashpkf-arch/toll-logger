@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8">
 <title>Toll Detour Counter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B6B4F">
+<meta name="theme-color" content="#05553C">
+<meta name="color-scheme" content="light only">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -87,8 +88,48 @@ label.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px
 #nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--mute);font-size:13px;border-radius:0}
 #nav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #nav button.on{color:var(--accent)}
+
+/* ===== sunlight: high contrast (all text ≥ 7:1), thick outlines, bigger and bolder ===== */
+:root{--paper:#FFFFFF;--surface:#FFFFFF;--ink:#0B1310;--mute:#26322D;--line:#3D4944;--accent:#05553C;--accent-soft:#CFE6DB;--warn:#6B3B00;--bad:#9A1A10}
+html,body{font-size:17px}
+#post{font-size:24px}#post small{font-size:15px;font-weight:700}
+.chip{font-size:15px;padding:7px 12px;border:2px solid var(--ink)}.chip::before{width:11px;height:11px}
+.types button{height:64px;border:2px solid var(--ink);font-size:18px}
+.types button span{font-size:13px;font-weight:700;color:var(--mute)}
+.types button.on{background:var(--accent);border:3px solid var(--ink);color:#fff;box-shadow:inset 0 0 0 2px #fff}
+.types button{position:relative}
+.types button.on::before{content:"✓";position:absolute;top:2px;right:5px;font-size:14px;line-height:1}
+.types button.on span{color:#fff}
+.display{border:2px solid var(--ink)}
+.digits div{width:64px;height:78px;border:3px solid var(--line);font-size:48px;background:#fff}
+.digits div.cur{border:4px solid var(--accent)}
+#hint{font-size:17px;font-weight:700;color:var(--ink)}#hint.warn{color:var(--warn)}
+.display.saved{animation:ok .6s}@keyframes ok{0%{background:#9FD3BC}100%{background:#fff}}
+.pad{gap:7px}
+.pad button{height:68px;border:2px solid var(--ink);font-size:36px;box-shadow:0 3px 0 var(--ink)}
+.pad button:active{background:#9FD3BC;transform:translateY(3px);box-shadow:none}
+.pad .fn{font-size:26px;color:var(--ink)}
+.pad .go{font-size:24px;border:2px solid var(--ink)}
+.blocked::after{background:rgba(255,255,255,.94);color:var(--ink);font-size:19px}
+.recent .row{border-top:2px solid var(--line);font-size:17px}.recent .row b{font-size:24px}
+.bar{font-size:16px;font-weight:700;color:var(--ink)}
+.bar button,.sec,.x{border:2px solid var(--ink)}
+.bar button{font-size:16px}
+.card{border:2px solid var(--line)}.card h2{font-size:19px}
+.t{font-size:15px;color:var(--mute)}
+.lrow{border-top:2px solid var(--line)}
+input.num,select,input[type=number],input.url,input.q{border:2px solid var(--ink);background:#fff;font-weight:700}
+input.num{font-size:22px}
+.sec.on{background:var(--accent);color:#fff;border:3px solid var(--ink)}
+.seg4{background:#fff;border:2px solid var(--ink)}.seg4 button{font-size:15px;color:var(--ink)}
+.seg4 button.on{background:var(--accent);color:#fff;box-shadow:none}
+table{font-size:16px}td,th{border-bottom:2px solid var(--line)}th{font-size:14px;color:var(--ink)}
+label.chk{font-size:17px}label.chk input{width:24px;height:24px}
+#nav{border-top:3px solid var(--ink)}#nav button{font-size:15px;color:var(--mute)}#nav svg{width:27px;height:27px;stroke-width:2.4}
+#nav button.on{color:var(--accent);box-shadow:inset 0 4px 0 var(--accent)}
+@media (max-width:400px){.types button.on::before{display:none}.types{gap:4px}.types button{font-size:16px;padding:2px 1px}.types button span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}}
+@media (max-height:700px){.top{margin-bottom:6px}#post{font-size:21px}.types button{height:52px}.display{margin:8px 0 6px;padding:8px}.digits div{height:56px;width:52px;font-size:38px}#hint{margin-top:4px;font-size:16px}.pad{gap:6px}.pad button{height:52px;font-size:30px}.bar{margin-top:6px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media (max-height:700px){.pad button{height:54px}.digits div{height:58px;width:50px;font-size:34px}.types button{height:50px}}
 </style></head><body><main>
 <div class="top">
  <div id="post">Post not set<small>Choose this phone's post in Setup</small></div>
