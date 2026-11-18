@@ -73,8 +73,8 @@ input[type=number]{width:64px}input.url{margin:8px 0 0}
 .pri.alert{background:var(--bad);margin:0 0 10px}
 .sec{padding:11px;border:1px solid var(--line);background:var(--surface);width:100%}
 .sec.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.grid4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid4 .sec{padding:14px 8px}
+.prow{margin-bottom:10px}.prow h3{font-size:16px;margin:0 0 5px}
+.prow div{display:grid;grid-template-columns:1fr 1fr;gap:8px}.prow .sec{padding:13px 6px}
 .seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--paper);border-radius:var(--r-md);padding:4px;margin-bottom:8px}
 .seg4 button{padding:8px 2px;font-size:13px;color:var(--mute);border-radius:9px}
 .seg4 button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
@@ -92,7 +92,7 @@ label.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px
 /* ===== sunlight: high contrast (all text ≥ 7:1), thick outlines, bigger and bolder ===== */
 :root{--paper:#FFFFFF;--surface:#FFFFFF;--ink:#0B1310;--mute:#26322D;--line:#3D4944;--accent:#05553C;--accent-soft:#CFE6DB;--warn:#6B3B00;--bad:#9A1A10}
 html,body{font-size:17px}
-#post{font-size:24px}#post small{font-size:15px;font-weight:700}
+#post{font-size:22px;line-height:1.1}#post small{font-size:15px;font-weight:700}
 .chip{font-size:15px;padding:7px 12px;border:2px solid var(--ink)}.chip::before{width:11px;height:11px}
 .types button{height:64px;border:2px solid var(--ink);font-size:18px}
 .types button span{font-size:13px;font-weight:700;color:var(--mute)}
@@ -123,7 +123,8 @@ input.num{font-size:22px}
 .sec.on{background:var(--accent);color:#fff;border:3px solid var(--ink)}
 .seg4{background:#fff;border:2px solid var(--ink)}.seg4 button{font-size:15px;color:var(--ink)}
 .seg4 button.on{background:var(--accent);color:#fff;box-shadow:none}
-table{font-size:16px}td,th{border-bottom:2px solid var(--line)}th{font-size:14px;color:var(--ink)}
+table{font-size:16px}#sum td,#sum th{padding:5px 3px}#sum td.pc{white-space:normal;font-weight:700;font-size:14px;line-height:1.15}#sum td.pc small{display:block;font-weight:400;color:var(--mute)}
+#sum tr:not(.ex) td{border-bottom-style:dotted}td,th{border-bottom:2px solid var(--line)}th{font-size:14px;color:var(--ink)}
 label.chk{font-size:17px}label.chk input{width:24px;height:24px}
 #nav{border-top:3px solid var(--ink)}#nav button{font-size:15px;color:var(--mute)}#nav svg{width:27px;height:27px;stroke-width:2.4}
 #nav button.on{color:var(--accent);box-shadow:inset 0 4px 0 var(--accent)}
@@ -157,21 +158,21 @@ label.chk{font-size:17px}label.chk input{width:24px;height:24px}
 <section id="vRec" hidden>
  <div class="card"><h2>Counts</h2><div class="scroll" id="sum"></div></div>
  <div class="card"><h2>Match and export</h2>
-  <div style="font-size:15px">An exit is matched with the closest earlier entry on the same side that has the same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.</div>
+  <div style="font-size:15px">An exit is matched with the closest earlier entry at the same detour that has the same 4 digits (same vehicle type preferred). Times are when each phone saved the vehicle.</div>
   <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos: one digit wrong or two digits swapped, same vehicle type, within 30 minutes</label>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
  <div class="card"><h2>Records</h2>
-  <div class="seg4" id="lseg"><button data-s="A-ENTRY">A Entry</button><button data-s="A-EXIT">A Exit</button><button data-s="B-ENTRY">B Entry</button><button data-s="B-EXIT">B Exit</button></div>
+  <select id="lsel" class="q" style="margin-bottom:8px;font-size:17px" aria-label="Post"></select>
   <input id="q" class="q" inputmode="numeric" placeholder="Search number" autocomplete="off">
   <div id="list" style="margin-top:6px"></div><button id="more" class="sec" style="margin-top:8px" hidden>Show more</button></div>
 </section>
 
 <section id="vSet" hidden>
  <div class="card"><h2>This phone's post</h2>
-  <div class="grid4" id="posts"><button class="sec" data-p="A-ENTRY">Side A · Entry</button><button class="sec" data-p="A-EXIT">Side A · Exit</button><button class="sec" data-p="B-ENTRY">Side B · Entry</button><button class="sec" data-p="B-EXIT">Side B · Exit</button></div>
-  <div class="t" style="margin-top:8px">Set each of the four phones to a different post. All four share the same Google Sheet.</div></div>
+  <div id="posts"></div>
+  <div class="t" style="margin-top:8px">Set each of the eight phones to a different post. All eight share the same Google Sheet.</div></div>
  <div class="card"><h2>Google Sheet</h2>
-  <div class="t">Paste the web app link from Apps Script. It ends with /exec. Use the same link on all four phones.</div>
+  <div class="t">Paste the web app link from Apps Script. It ends with /exec. Use the same link on all eight phones.</div>
   <input id="url" class="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false">
   <button id="saveUrl" class="pri">Save and test</button><div id="urlRes" style="margin-top:8px"></div></div>
  <div class="card"><h2>Status</h2><div id="sInfo" style="font-size:15px"></div>
@@ -179,7 +180,7 @@ label.chk{font-size:17px}label.chk input{width:24px;height:24px}
  <div class="card"><h2>Other</h2>
   <label class="chk" style="margin-top:0"><input type="checkbox" id="vib" checked>Vibrate on key press and save</label>
   <button id="clear" class="sec" style="margin-top:10px;color:var(--bad)">Clear this phone</button>
-  <div class="t" style="margin-top:8px">Keep all four phones on automatic date and time, so entry and exit times line up.</div></div>
+  <div class="t" style="margin-top:8px">Keep all phones on automatic date and time, so entry and exit times line up.</div></div>
 </section>
 </main>
 <nav id="nav">
@@ -189,7 +190,8 @@ label.chk{font-size:17px}label.chk input{width:24px;height:24px}
 </nav>
 <script>
 const KEY='tollLog_v2',CKEY='tollCfg_v1',TYPES=['Car','LCV','Truck','Bus','MAV'];
-const POSTS={'A-ENTRY':'Side A · Entry','A-EXIT':'Side A · Exit','B-ENTRY':'Side B · Entry','B-EXIT':'Side B · Exit'};
+const DETOURS=['LHS Kaniyur','LHS LMW','RHS Kaniyur','RHS Rangaz'];   // each detour: its entries are matched with its own exits
+const POSTS={};DETOURS.forEach(d=>{POSTS[d+'|ENTRY']=d+' · Entry';POSTS[d+'|EXIT']=d+' · Exit'});
 let recs=[],view='count',cfg={url:'',gate:'',dir:'',lastSrv:0,type:'Car',vib:true},entry='',clearArm=false,lseg='',shown=100;
 try{Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
 const saveCfg=()=>{try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(e){}};
@@ -198,8 +200,8 @@ const pad2=n=>String(n).padStart(2,'0');
 const fmt=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())};
 const hm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())};
 const digitsOf=s=>String(s||'').replace(/\D/g,'').slice(-4);     // older full plates count by their last 4 digits
-const postOf=r=>(r.gate||'?')+'-'+(r.side||'?');
-const myPost=()=>cfg.gate&&cfg.dir?cfg.gate+'-'+cfg.dir:'';
+const postOf=r=>(r.gate||'?')+'|'+(r.side||'?');
+const myPost=()=>{const k=cfg.gate+'|'+cfg.dir;return POSTS[k]?k:''};
 const today=r=>{const a=new Date(r.t),b=new Date();return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()};
 const buzz=p=>{try{if(cfg.vib&&navigator.vibrate)navigator.vibrate(p)}catch(e){}};
 
@@ -232,8 +234,8 @@ function touch(r){r.updated=Date.now();r.dirty=1;save();kick()}
 /* ---- count screen: type + 4 digits ---- */
 function header(){
   const p=$('post'),mp=myPost();p.textContent=mp?POSTS[mp]:'Post not set';
-  const s=document.createElement('small');s.textContent=mp?'Logging '+(cfg.dir==='ENTRY'?'entries':'exits')+' on side '+cfg.gate:'Choose this phone\'s post in Setup';p.append(s);
-  const w=$('padwrap');if(mp){w.classList.remove('blocked');w.removeAttribute('data-msg')}else{w.classList.add('blocked');w.dataset.msg='Choose this phone\'s post in Setup first (Side A/B, Entry/Exit).'}
+  const s=document.createElement('small');s.textContent=mp?(cfg.dir==='ENTRY'?'Entry post':'Exit post'):'Choose this phone\'s post in Setup';p.append(s);
+  const w=$('padwrap');if(mp){w.classList.remove('blocked');w.removeAttribute('data-msg')}else{w.classList.add('blocked');w.dataset.msg='Choose this phone\'s post in Setup first.'}
 }
 function showTypes(){
   const L=live(),mp=myPost();
@@ -291,16 +293,18 @@ function counts(){const mp=myPost();$('cnt').textContent=mp?live().filter(r=>pos
 /* ---- records screen ---- */
 function summary(){
   const L=live(),S=$('sum');S.textContent='';const tb=document.createElement('table'),h=tb.insertRow();
-  ['Post',...TYPES,'Total'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
-  for(const p of Object.keys(POSTS)){const tr=tb.insertRow(),P=L.filter(r=>postOf(r)===p);tr.insertCell().textContent=POSTS[p];
+  ['',...TYPES,'Total'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
+  for(const p of Object.keys(POSTS)){const tr=tb.insertRow(),P=L.filter(r=>postOf(r)===p),c0=tr.insertCell(),[d,x]=p.split('|');
+    c0.className='pc';c0.textContent=d;const sm=document.createElement('small');sm.textContent=x==='ENTRY'?'Entry':'Exit';c0.append(sm);if(x==='EXIT')tr.className='ex';
     TYPES.forEach(t=>tr.insertCell().textContent=P.filter(r=>r.type===t).length);const c=tr.insertCell();c.textContent=P.length;c.style.fontWeight='700'}
   S.append(tb);
 }
-document.querySelectorAll('#lseg button').forEach(b=>b.onclick=()=>{lseg=b.dataset.s;shown=100;list()});
+Object.entries(POSTS).forEach(([k,v])=>{const o=document.createElement('option');o.value=k;o.textContent=v;$('lsel').append(o)});
+$('lsel').onchange=e=>{lseg=e.target.value;shown=100;list()};
 $('q').oninput=()=>{shown=100;list()};$('more').onclick=()=>{shown+=100;list()};
 function list(){
-  if(!lseg)lseg=myPost()||'A-ENTRY';
-  document.querySelectorAll('#lseg button').forEach(b=>b.className=b.dataset.s===lseg?'on':'');
+  if(!lseg)lseg=myPost()||Object.keys(POSTS)[0];
+  $('lsel').value=lseg;
   const q=$('q').value.replace(/\D/g,''),L=$('list');L.textContent='';
   const rows=live().filter(r=>postOf(r)===lseg&&(!q||digitsOf(r.plate).includes(q))).sort((a,b)=>b.t-a.t);
   $('more').hidden=rows.length<=shown;$('more').textContent='Show more ('+(rows.length-shown)+' older)';
@@ -317,7 +321,7 @@ function list(){
 }
 function refreshRec(){if(view==='rec'){summary();if(!$('list').contains(document.activeElement))list()}if(view==='count'){showTypes();recent()}}
 
-/* ---- matching: Side A entries with Side A exits, Side B with Side B ---- */
+/* ---- matching: each detour's entries with that same detour's exits ---- */
 function digitDiff(a,b){                 // 0 = same, 1 = one digit wrong, 2 = two neighbours swapped, -1 = too different
   if(a===b)return 0;if(a.length!==4||b.length!==4)return -1;
   let d=[];for(let i=0;i<4;i++)if(a[i]!==b[i])d.push(i);
@@ -347,31 +351,32 @@ const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('scri
 $('go').onclick=async()=>{
   const R=$('res'),fz=$('fuzzy').checked;R.textContent='Matching…';
   if(cfg.url)try{await sync()}catch(e){}
-  const S={A:matchSide('A',fz),B:matchSide('B',fz)};
-  R.textContent='';const tb=document.createElement('table'),h=tb.insertRow();
-  ['','Side A','Side B'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
-  const add=(lab,f)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;['A','B'].forEach(g=>tr.insertCell().textContent=f(S[g]))};
-  add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);
-  add('Matched – exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('Matched – typo',s=>s.T.filter(p=>p.dd>0).length);
-  add('Matched total',s=>s.T.length);add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
-  R.append(tb);
+  const S={};DETOURS.forEach(d=>S[d]=matchSide(d,fz));
+  R.textContent='';const box=document.createElement('div');box.className='scroll';const tb=document.createElement('table'),h=tb.insertRow();
+  ['',...DETOURS].forEach(k=>{const th=document.createElement('th');th.textContent=k;th.style.whiteSpace='normal';h.append(th)});
+  const add=(lab,f,b)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;DETOURS.forEach(d=>{const c=tr.insertCell();c.textContent=f(S[d]);if(b)c.style.fontWeight='700'})};
+  add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);add('Matched',s=>s.T.length,1);
+  add('· exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('· typo',s=>s.T.filter(p=>p.dd>0).length);
+  add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
+  box.append(tb);R.append(box);
   // ---- Excel ----
   const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
     return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
       [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):''}});
-  const pairRows=(g,list)=>list.map(p=>({'Side':g,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
+  const pairRows=d=>S[d].T.map(p=>({'Detour':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
     'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t)}));
-  const onlyRows=(g,s)=>[...s.eOnly.map(r=>({'Side':g,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type})),
-    ...s.xOnly.map(r=>({'Side':g,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type}))].sort((a,b)=>a.Time<b.Time?-1:1);
-  const summ=[];const sr=(k,f)=>summ.push({'':k,'Side A':f(S.A),'Side B':f(S.B),'Total':f(S.A)+f(S.B)});
+  const onlyRows=d=>[...S[d].eOnly.map(r=>({'Detour':d,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type})),
+    ...S[d].xOnly.map(r=>({'Detour':d,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type}))].sort((a,b)=>a.Time<b.Time?-1:1);
+  const summ=[];const sr=(k,f)=>{const row={'':k};let tot=0;DETOURS.forEach(d=>{const v=f(S[d]);row[d]=v;tot+=v});row['Total']=tot;summ.push(row)};
   sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
   sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
   sr('Matched – exact number',s=>s.T.filter(p=>p.dd===0).length);
   sr('Matched – likely typo',s=>s.T.filter(p=>p.dd>0).length);sr('Matched total (transit)',s=>s.T.length);
   TYPES.forEach(t=>sr('   Matched – '+t,s=>s.T.filter(p=>p.e.type===t).length));sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
-  summ.push({},{'':'Typo matching','Side A':fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created','Side A':fmt(Date.now())});
-  const sheets={'Summary':summ,'A Entry':stationRows(S.A,S.A.E,true),'A Exit':stationRows(S.A,S.A.X,false),'B Entry':stationRows(S.B,S.B.E,true),'B Exit':stationRows(S.B,S.B.X,false),
-    'A Matched':pairRows('A',S.A.T),'B Matched':pairRows('B',S.B.T),'A Unmatched':onlyRows('A',S.A),'B Unmatched':onlyRows('B',S.B)};
+  summ.push({},{'':'Typo matching',[DETOURS[0]]:fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created',[DETOURS[0]]:fmt(Date.now())});
+  const sheets={'Summary':summ};
+  DETOURS.forEach(d=>{sheets[d+' Entry']=stationRows(S[d],S[d].E,true);sheets[d+' Exit']=stationRows(S[d],S[d].X,false)});
+  sheets['Matched']=DETOURS.flatMap(pairRows);sheets['Unmatched']=DETOURS.flatMap(onlyRows);
   const msg=(t,c)=>{const d=document.createElement('div');d.className=c;d.style.marginTop='8px';d.textContent=t;R.append(d)};
   if(!window.XLSX)try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}
   try{
@@ -455,9 +460,11 @@ function setupInfo(){
     if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
     if(cfg.sheet){const a=document.createElement('a');a.href=cfg.sheet;a.target='_blank';a.rel='noopener';a.className='sec';a.style.cssText='display:block;text-align:center;margin:8px 0;font-weight:700;text-decoration:none;color:var(--accent)';a.textContent='Open the Google Sheet';I.append(a)}
   }
-  line('Records on this phone: '+Object.keys(POSTS).map(p=>p.replace('-ENTRY',' in').replace('-EXIT',' out')+' '+L.filter(r=>postOf(r)===p).length).join(' · '));
+  line('Vehicles on this phone: '+L.filter(r=>POSTS[postOf(r)]).length+' (this post: '+L.filter(r=>postOf(r)===myPost()).length+')');
 }
-document.querySelectorAll('#posts button').forEach(b=>b.onclick=()=>{const [g,d]=b.dataset.p.split('-');cfg.gate=g;cfg.dir=d;saveCfg();lseg='';header();setupInfo();showTypes();recent();counts();buzz(20)});
+DETOURS.forEach(d=>{const row=document.createElement('div');row.className='prow';const h=document.createElement('h3');h.textContent=d;const g=document.createElement('div');
+  ['ENTRY','EXIT'].forEach(x=>{const b=document.createElement('button');b.className='sec';b.dataset.p=d+'|'+x;b.textContent=x==='ENTRY'?'Entry':'Exit';g.append(b)});row.append(h,g);$('posts').append(row)});
+document.querySelectorAll('#posts button').forEach(b=>b.onclick=()=>{const [g,d]=b.dataset.p.split('|');cfg.gate=g;cfg.dir=d;saveCfg();lseg='';header();setupInfo();showTypes();recent();counts();buzz(20)});
 $('vib').onchange=e=>{cfg.vib=e.target.checked;saveCfg()};
 $('syncNow').onclick=()=>{if(cfg.url)sync();else{$('urlRes').className='err';$('urlRes').textContent='Paste the web app link first.'}};
 $('link').onclick=()=>setView('set');
