@@ -3,6 +3,7 @@
 <title>Toll Detour Logger</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B6B4F">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -116,7 +117,9 @@ input[type=file]{display:none}
  <div class="card"><h2>Match and export</h2>
   <div style="font-size:15px">Count as transit if the vehicle exits within <input type="number" id="maxm" value="15" min="1"> min, and after at least <input type="number" id="minm" value="0" min="0"> min.</div>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
- <div class="card"><div class="pair" style="margin-bottom:8px"><button id="lIn" class="sec">Entry list</button><button id="lOut" class="sec">Exit list</button></div><div id="list"></div></div>
+ <div class="card"><div class="pair" style="margin-bottom:8px"><button id="lIn" class="sec">Entry list</button><button id="lOut" class="sec">Exit list</button></div>
+  <div style="display:flex;gap:8px;margin-bottom:6px"><input id="q" class="url" style="margin:0;flex:1;text-transform:uppercase" placeholder="Search plate" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="chk" class="sec" style="width:auto;white-space:nowrap">Needs check</button></div>
+  <div id="list"></div><button id="more" class="sec" style="margin-top:8px" hidden>Show more</button></div>
  <div class="card"><h2>Add from gallery</h2>
   <div style="display:flex;align-items:center;gap:8px;font-size:15px">Vehicle type <select id="impT"><option>Car</option><option>LCV</option><option>Truck</option><option>Bus</option><option>MAV</option></select></div>
   <label class="sec" style="display:block;text-align:center;margin-top:10px;border-radius:var(--r-md);font-weight:700">Choose photos<input type="file" accept="image/*" multiple id="fGal"></label>
@@ -151,17 +154,37 @@ const STATES=new Set('AN AP AR AS BR CH CG DD DL DN GA GJ HP HR JH JK KA KL LA L
 const TD={O:'0',Q:'0',D:'0',I:'1',L:'1',Z:'2',S:'5',B:'8',G:'6'},TA={'0':'O','1':'I','2':'Z','5':'S','8':'B','6':'G'};
 let recs=[],queue=[],busy=false,side='ENTRY',lside='ENTRY',view='cam',stream=null,pendType='Car',clearArm=false;
 const CKEY='tollCfg_v1';let cfg={url:'',gate:'',lastSrv:0};
-try{recs=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
 try{Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
 const saveCfg=()=>{try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(e){}};
-recs.forEach(r=>{if(r.status==='queued'||r.status==='reading')r.status='failed';
-  if(r.updated==null){r.updated=r.t;r.own=true;r.dirty=1;r.deleted=0;r.gate=r.gate||cfg.gate||''}});   // records from the old version
+/* ---- storage: records live in IndexedDB (room for thousands of photos); localStorage only as a fallback ---- */
+let idb=null,saveT=null;const sigs=new Map();
+const sigOf=r=>[r.updated,r.status,r.plate,r.type,r.side,r.gate,r.deleted,r.dirty,r.lc,r.src,r.hint,r.gdone,(r.thumb||'').length].join('|');
+function idbOpen(){return new Promise((ok,no)=>{try{const q=indexedDB.open('tollLog',1);q.onupgradeneeded=()=>q.result.createObjectStore('recs',{keyPath:'id'});q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}})}
+async function loadRecs(){
+  let got=[];
+  try{idb=await idbOpen();got=await new Promise((ok,no)=>{const q=idb.transaction('recs').objectStore('recs').getAll();q.onsuccess=()=>ok(q.result||[]);q.onerror=()=>no(q.error)})}catch(e){idb=null}
+  let old=[];try{old=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
+  if(idb){const have=new Set(got.map(r=>r.id));got=got.concat(old.filter(r=>!have.has(r.id)))}else got=old;   // move old-version records across
+  got.forEach(r=>{if(r.status==='queued'||r.status==='reading')r.status='failed';
+    if(r.updated==null){r.updated=r.t;r.own=true;r.dirty=1;r.deleted=0;r.gate=r.gate||cfg.gate||''}});
+  const mine=new Set(recs.map(r=>r.id));recs=got.filter(r=>!mine.has(r.id)).concat(recs).sort((a,b)=>a.t-b.t);   // keep anything tapped while loading
+  if(idb){await flush();if(old.length)try{localStorage.removeItem(KEY)}catch(e){}}
+}
+function flush(){
+  clearTimeout(saveT);saveT=null;
+  if(!idb){try{localStorage.setItem(KEY,JSON.stringify(recs))}catch(e){try{localStorage.setItem(KEY,JSON.stringify(recs.map(r=>({...r,thumb:''}))))}catch(e2){}}return Promise.resolve()}
+  return new Promise(ok=>{try{const tx=idb.transaction('recs','readwrite'),st=tx.objectStore('recs'),ids=new Set();
+    for(const r of recs){ids.add(r.id);const g=sigOf(r);if(sigs.get(r.id)!==g){st.put(r);sigs.set(r.id,g)}}
+    for(const id of [...sigs.keys()])if(!ids.has(id)){st.delete(id);sigs.delete(id)}
+    tx.oncomplete=ok;tx.onerror=tx.onabort=()=>{sigs.clear();ok()}}catch(e){sigs.clear();ok()}});
+}
+addEventListener('pagehide',()=>flush());document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
 if(cfg.gate)side=cfg.gate==='A'?'ENTRY':'EXIT';
 const $=id=>document.getElementById(id);
 const live=()=>recs.filter(r=>!r.deleted);
 function touch(r){r.updated=Date.now();r.dirty=1;save();kick()}
 function refreshLog(){if(view==='log'){summary();if(!$('list').contains(document.activeElement))list()}}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(recs))}catch(e){try{localStorage.setItem(KEY,JSON.stringify(recs.map(r=>({...r,thumb:''}))))}catch(e2){}}};
+const save=()=>{if(!saveT)saveT=setTimeout(flush,300)};
 const fmt=t=>{const d=new Date(t),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())};
 const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 function sim(a,b){if(!a||!b)return 0;const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return 1-p[n]/Math.max(m,n)}
@@ -204,7 +227,7 @@ function loadFast(){
     fw=new Worker(URL.createObjectURL(new Blob([WCODE],{type:'text/javascript'})));
     fw.onmessage=e=>{const q=fwq[e.data.id];delete fwq[e.data.id];if(q)e.data.err?q.no(new Error(e.data.err)):q.ok(e.data)};
     fw.onerror=e=>{for(const k in fwq){fwq[k].no(new Error('worker'));delete fwq[k]}};
-    await wcall({t:'init',ort:ORT,det:new URL('models/plate_finder.onnx',location.href).href,ocr:new URL('models/plate_reader.onnx',location.href).href});
+    await wcall({t:'init',ort:ORT,det:new URL('models/plate_finder.onnx?v=1',location.href).href,ocr:new URL('models/plate_reader.onnx?v=2',location.href).href});
     fastOk=true;ocrChip();pump();return true;
   })().catch(e=>{console.log('reader',e);fastP=null;fastOk=false;ocrChip();setTimeout(loadFast,8000);return false});
   return fastP;
@@ -422,15 +445,22 @@ function setView(v){view=v;$('vCam').hidden=v!=='cam';$('vLog').hidden=v!=='log'
   $('tCam').className=v==='cam'?'on':'';$('tLog').className=v==='log'?'on':'';$('tSet').className=v==='set'?'on':'';
   if(v==='log'){summary();list()}else if(v==='set'){$('url').value=cfg.url;setupInfo()}else fit()}
 $('tCam').onclick=()=>setView('cam');$('tLog').onclick=()=>setView('log');$('tSet').onclick=()=>setView('set');
-$('lIn').onclick=()=>{lside='ENTRY';list()};$('lOut').onclick=()=>{lside='EXIT';list()};
+$('lIn').onclick=()=>{lside='ENTRY';shown=100;list()};$('lOut').onclick=()=>{lside='EXIT';shown=100;list()};
 function summary(){
   const L=live(),f=s=>TYPES.map(t=>t+' '+L.filter(r=>r.side===s&&r.type===t).length).join(' · ');
   $('sum').textContent='';[['Entry',f('ENTRY')],['Exit',f('EXIT')]].forEach(([a,b])=>{const d=document.createElement('div');d.textContent=a+': '+b;$('sum').append(d)});
 }
+let onlyChk=false,shown=100;
+const needsCheck=r=>!r.plate||r.lc||!PLATE.test(r.plate);
+$('q').oninput=()=>{shown=100;list()};$('chk').onclick=()=>{onlyChk=!onlyChk;shown=100;list()};$('more').onclick=()=>{shown+=100;list()};
 function list(){
   $('lIn').style.borderColor=lside==='ENTRY'?'var(--in)':'';$('lOut').style.borderColor=lside==='EXIT'?'var(--out)':'';
-  const L=$('list');L.textContent='';
-  live().filter(r=>r.side===lside).sort((a,b)=>b.t-a.t).forEach(r=>{
+  const L=$('list');L.textContent='';const q=norm($('q').value),side_=live().filter(r=>r.side===lside),nc=side_.filter(needsCheck).length;
+  $('chk').textContent='Needs check'+(nc?' ('+nc+')':'');$('chk').className='sec'+(onlyChk?' on':'');
+  const rows=side_.filter(r=>(!onlyChk||needsCheck(r))&&(!q||(r.plate||'').includes(q)||sim(r.plate||'',q)>=.75)).sort((a,b)=>b.t-a.t);
+  $('more').hidden=rows.length<=shown;$('more').textContent='Show more ('+(rows.length-shown)+' older)';
+  if(!rows.length){const e=document.createElement('div');e.className='t';e.style.padding='10px 0';e.textContent=onlyChk?'Nothing to check on this side.':q?'No plate matches '+q+'.':'No vehicles logged on this side yet.';L.append(e)}
+  rows.slice(0,shown).forEach(r=>{
     const row=document.createElement('div');row.className='row';
     const im=r.thumb?Object.assign(document.createElement('img'),{src:r.thumb}):Object.assign(document.createElement('div'),{className:'ph'});
     const mid=document.createElement('div'),t=document.createElement('div');t.className='t';t.textContent=fmt(r.t).slice(11)+(r.gate?' · Side '+r.gate:'')+(r.own?' · '+r.status:' · other phone')+(r.dirty&&cfg.url?' · unsent':'');
@@ -572,5 +602,11 @@ setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
 addEventListener('online',()=>kick(500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
 
-counts();startCam();loadFast();liveLoop();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}
+startCam();loadFast();counts();
+loadRecs().then(()=>{counts();refreshLog();liveLoop();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}});
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}   // ask the phone not to clear our data
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* keep the screen on while the app is open (camera stops when the phone sleeps) */
+let wl=null;async function keepAwake(){try{if('wakeLock' in navigator&&!document.hidden&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}}catch(e){}}
+document.addEventListener('visibilitychange',keepAwake);addEventListener('pointerdown',keepAwake,{once:true});keepAwake();
 </script></body></html>

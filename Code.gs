@@ -41,10 +41,16 @@ function doGet(e) {
     const since = Number((e && e.parameter || {}).since || 0);
     const s = sh_(), n = s.getLastRow(), recs = [];
     if (n > 1) {
-      s.getRange(2, 1, n - 1, HEAD.length).getValues().forEach(r => {
-        if (Number(r[9]) > since) recs.push({id:String(r[0]),gate:String(r[1]),dir:String(r[2]),type:String(r[3]),plate:String(r[4]),t:Number(r[5]),
-          time:String(r[6]),updated:Number(r[7]),deleted:Number(r[8]),srv:Number(r[9]),thumb:String(r[10]||'')});
-      });
+      // read only the 'srv' column first, then only the rows that changed since the phone last asked
+      const srv = s.getRange(2, 10, n - 1, 1).getValues();
+      let first = -1;
+      for (let i = 0; i < srv.length; i++) if (Number(srv[i][0]) > since) { first = i; break; }
+      if (first >= 0) {
+        s.getRange(first + 2, 1, n - 1 - first, HEAD.length).getValues().forEach(r => {
+          if (Number(r[9]) > since) recs.push({id:String(r[0]),gate:String(r[1]),dir:String(r[2]),type:String(r[3]),plate:String(r[4]),t:Number(r[5]),
+            time:String(r[6]),updated:Number(r[7]),deleted:Number(r[8]),srv:Number(r[9]),thumb:String(r[10]||'')});
+        });
+      }
     }
     return out_({ok:true, records:recs, now:Date.now(), sheet:book_().getUrl()});
   } catch (err) { return out_({ok:false, error:String(err)}); }
@@ -74,8 +80,9 @@ function doPost(e) {
   try {
     lock.waitLock(25000);
     const s = sh_(), n = s.getLastRow(), now = Date.now();
-    const old = n > 1 ? s.getRange(2, 1, n - 1, HEAD.length).getValues() : [];
-    const idx = {}; old.forEach((r, i) => idx[String(r[0])] = i);
+    // only the id (A) and updated (H) columns are needed to find existing rows
+    const ids = n > 1 ? s.getRange(2, 1, n - 1, 1).getValues() : [], upd = n > 1 ? s.getRange(2, 8, n - 1, 1).getValues() : [];
+    const idx = {}; ids.forEach((r, i) => idx[String(r[0])] = i);
     const add = [], addIdx = {}; let changed = 0;
     (body.records || []).forEach(r => {
       if (!r || !r.id) return;
@@ -85,9 +92,10 @@ function doPost(e) {
                    Number(r.updated) || 0, r.deleted ? 1 : 0, now, th];
       if (id in idx) {                       // already in the sheet: replace only if newer
         const i = idx[id];
-        if (row[7] > Number(old[i][7])) {
-          if (!th) row[10] = old[i][10];     // keep the stored photo if none was sent
-          s.getRange(i + 2, 1, 1, HEAD.length).setValues([row]); old[i] = row; changed++;
+        if (row[7] > Number(upd[i][0])) {
+          if (th) s.getRange(i + 2, 1, 1, HEAD.length).setValues([row]);          // with photo
+          else s.getRange(i + 2, 1, 1, HEAD.length - 1).setValues([row.slice(0, -1)]);  // keep the stored photo
+          upd[i] = [row[7]]; changed++;
         }
       } else if (id in addIdx) {             // same id twice in one upload: keep the newer copy
         const k = addIdx[id];
