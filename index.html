@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Toll Detour Logger</title>
+<title>Toll Detour Counter</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B6B4F">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
@@ -10,579 +10,354 @@
 :root{
   --paper:#F2F5F3;--surface:#FFFFFF;--ink:#1C2B26;--mute:#5E6B66;--line:#D7DFDB;
   --accent:#0B6B4F;--accent-soft:#E2EFE9;--warn:#9A5B00;--bad:#B42318;
-  --in:var(--accent);--out:var(--accent);--ok:var(--accent);
-  --r-lg:16px;--r-md:12px;--r-sm:8px;--nav:64px;
-  color-scheme:light;
+  --r-lg:16px;--r-md:12px;--r-sm:8px;--nav:62px;color-scheme:light;
 }
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.45 'Atkinson Hyperlegible',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
-main{max-width:560px;margin:0 auto;padding:10px 14px calc(var(--nav) + 16px + env(safe-area-inset-bottom));padding-top:max(10px,env(safe-area-inset-top))}
-button{font:700 16px 'Atkinson Hyperlegible',system-ui,sans-serif;border:0;border-radius:var(--r-md);cursor:pointer;color:inherit;background:none}
+main{max-width:520px;margin:0 auto;padding:10px 12px calc(var(--nav) + 14px + env(safe-area-inset-bottom));padding-top:max(10px,env(safe-area-inset-top))}
+button{font:700 16px 'Atkinson Hyperlegible',system-ui,sans-serif;border:0;border-radius:var(--r-md);cursor:pointer;color:inherit;background:none;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
-/* header: which side this phone is + status */
+/* header */
 .top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-#sideLbl{font-weight:700;font-size:17px;line-height:1.2}
-#sideLbl small{display:block;font-weight:400;font-size:13px;color:var(--mute)}
-.status{display:flex;gap:6px}
+#post{font-weight:700;font-size:20px;line-height:1.15}
+#post small{display:block;font-weight:400;font-size:13px;color:var(--mute)}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:13px;font-weight:700;background:var(--surface);border:1px solid var(--line);color:var(--ink);white-space:nowrap}
 .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--line)}
-.chip.ok::before{background:var(--accent)}.chip.wait::before{background:#D49A2A}.chip.bad::before{background:var(--bad)}
-.chip.bad{color:var(--bad)}
+.chip.ok::before{background:var(--accent)}.chip.wait::before{background:#D49A2A}.chip.bad::before{background:var(--bad)}.chip.bad{color:var(--bad)}
 
-/* entry / exit switch */
-.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:4px;gap:4px;margin-bottom:10px}
-.seg button{padding:12px 6px;color:var(--mute);display:flex;justify-content:center;align-items:baseline;gap:8px}
-.seg b{font-size:15px;opacity:.8}
-.seg button.on{background:var(--accent);color:#fff}
-
-/* camera */
-#camwrap{position:relative;margin:0 -14px;background:#000;overflow:hidden;height:60vh;min-height:300px;touch-action:none}
-#vid{width:100%;height:100%;display:block;object-fit:cover;transform-origin:50% 50%}
-#live{position:absolute;left:50%;top:calc(50% + 15% + 10px);transform:translateX(-50%);background:rgba(255,255,255,.85);color:var(--ink);border:2px solid rgba(28,43,38,.5);border-radius:7px;padding:2px 10px;font:700 18px/1.2 'Atkinson Hyperlegible',system-ui,sans-serif;letter-spacing:1px;pointer-events:none}
-#live.sure{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(11,107,79,.45)}
-#guide{position:absolute;left:50%;top:50%;width:86%;height:30%;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.95);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);pointer-events:none}
-#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .15s}
-#msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:24px;font-size:15px}
-#zoom{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:0 10px}
-#zoom button{min-width:52px;height:42px;border-radius:21px;background:rgba(20,30,26,.6);color:#fff;font-size:15px;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px)}
-#zoom button.on{background:#fff;color:var(--ink);border-color:#fff}
-#fpanel{position:absolute;left:10px;right:10px;bottom:62px;background:rgba(20,30,26,.82);color:#fff;border-radius:14px;padding:10px;backdrop-filter:blur(6px)}
-#fpanel .fm{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-#fpanel .fm button{height:40px;border-radius:10px;background:rgba(255,255,255,.12);color:#fff;font-size:15px}
-#fpanel .fm button.on{background:#fff;color:var(--ink)}#fpanel .fm button:disabled{opacity:.35}
-#fpanel .fr{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:14px}#fpanel input{flex:1;width:auto;accent-color:#fff}
-#fpanel .fn{font-size:13px;opacity:.85;margin-top:8px}
-#fring{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border:2px solid #fff;border-radius:10px;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;transform:scale(1.3)}
-#fring.show{opacity:1;transform:scale(1)}
-#ctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-#ctl button{height:40px;min-width:44px;padding:0 12px;border-radius:20px;background:rgba(20,30,26,.6);color:#fff;font-size:15px;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px)}
-#ctl button.on{background:#fff;color:var(--ink);border-color:#fff}
-#zinfo{color:#fff;background:rgba(20,30,26,.6);padding:2px 8px;border-radius:8px;font-size:12px}
-/* last read, drawn like a number plate */
-#lastbox{position:absolute;left:10px;top:10px;right:112px;display:flex;align-items:center;gap:8px}
-#lastimg{height:44px;max-width:78px;border-radius:6px;display:block;background:#333;border:2px solid #fff}
-#lastp{min-width:0;background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:7px;padding:4px 12px 5px;font:700 21px/1.05 'Atkinson Hyperlegible',system-ui,sans-serif;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 8px rgba(0,0,0,.35);max-width:calc(100% - 86px)}
-#lastp small{display:block;font-size:12px;font-weight:400;letter-spacing:0;color:var(--mute)}
-
-.bar{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:14px;color:var(--mute);min-height:36px}
-.bar .last{flex:1;color:var(--ink)}
-.bar button{padding:8px 14px;border:1px solid var(--line);background:var(--surface);font-size:14px}
-
-/* vehicle buttons: one style, name + what it covers */
+/* vehicle types */
 .types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-.types button{height:76px;background:var(--ink);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 2px;transition:background .1s}
-.types button span{font-size:11px;font-weight:400;opacity:.75;line-height:1.15}
-.types button:active{background:var(--accent);transform:translateY(1px)}
-.hint{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--mute);font-size:13px;margin-top:10px}
-.hint label{display:flex;align-items:center;gap:6px;white-space:nowrap}
-input[type=range]{accent-color:var(--accent);width:96px}
+.types button{height:58px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:2px}
+.types button span{font-size:11px;font-weight:400;color:var(--mute)}
+.types button.on{background:var(--accent);border-color:var(--accent);color:#fff}.types button.on span{color:#d6ece3}
+
+/* number display */
+.display{margin:10px 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:12px 12px 10px;text-align:center}
+.digits{display:flex;justify-content:center;gap:10px}
+.digits div{width:58px;height:70px;border-radius:10px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font:700 40px/1 'Atkinson Hyperlegible',system-ui,sans-serif;background:var(--paper)}
+.digits div.cur{border-color:var(--accent)}
+.display.saved{animation:ok .45s}
+@keyframes ok{0%{background:var(--accent-soft)}100%{background:var(--surface)}}
+#hint{margin-top:8px;font-size:14px;color:var(--mute);min-height:20px}
+#hint.warn{color:var(--warn);font-weight:700}
+
+/* keypad */
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad button{height:64px;background:var(--surface);border:1px solid var(--line);font-size:28px;box-shadow:0 1px 0 var(--line)}
+.pad button:active{background:var(--accent-soft);transform:translateY(1px)}
+.pad .fn{font-size:18px;color:var(--mute)}
+.pad .go{background:var(--accent);border-color:var(--accent);color:#fff;font-size:20px}
+.blocked{position:relative}
+.blocked::after{content:attr(data-msg);position:absolute;inset:-4px;background:rgba(242,245,243,.9);display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;padding:20px;border-radius:var(--r-lg)}
+
+/* recent */
+.recent{margin-top:10px}
+.recent .row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:15px}
+.recent .row b{font-size:19px;letter-spacing:1px;min-width:56px}
+.recent .row .t{flex:1}
+.bar{display:flex;align-items:center;justify-content:space-between;margin-top:8px;font-size:14px;color:var(--mute)}
+.bar button{padding:8px 14px;border:1px solid var(--line);background:var(--surface);font-size:14px;color:var(--ink)}
 
 /* cards & forms */
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px;margin:0 0 12px}
 .card h2{font-size:17px;margin:0 0 8px}
 .t{font-size:13px;color:var(--mute)}
-.row{display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
-.row img,.ph{width:72px;height:46px;border-radius:6px;object-fit:cover;background:var(--line)}
-input.plate,select,input[type=number],input.url{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink)}
-input.plate{width:100%;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:3px 0}
-input[type=number]{width:64px}input.url{width:100%;margin:8px 0 0}
+.lrow{display:grid;grid-template-columns:62px 1fr 92px auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+input.num,select,input[type=number],input.url,input.q{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--paper);color:var(--ink);width:100%}
+input.num{font-weight:700;letter-spacing:2px;font-size:18px}
+input[type=number]{width:64px}input.url{margin:8px 0 0}
 .x{padding:8px 11px;color:var(--bad);border:1px solid var(--line)}
 .pri{width:100%;padding:14px;background:var(--accent);color:#fff;margin-top:10px}
 .pri.alert{background:var(--bad);margin:0 0 10px}
 .sec{padding:11px;border:1px solid var(--line);background:var(--surface);width:100%}
 .sec.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid4 .sec{padding:14px 8px}
+.seg4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--paper);border-radius:var(--r-md);padding:4px;margin-bottom:8px}
+.seg4 button{padding:8px 2px;font-size:13px;color:var(--mute);border-radius:9px}
+.seg4 button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 .ok{color:var(--accent)}.err{color:var(--bad)}.scroll{overflow-x:auto}
-table{border-collapse:collapse;font-size:13px;width:100%}td,th{padding:5px 6px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
-input[type=file]{display:none}
-#sum div{padding:3px 0}
+table{border-collapse:collapse;font-size:14px;width:100%}td,th{padding:6px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{font-size:12px;color:var(--mute);font-weight:700}
+label.chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px}label.chk input{width:20px;height:20px;accent-color:var(--accent)}
 
 /* bottom navigation */
 #nav{position:fixed;left:0;right:0;bottom:0;height:calc(var(--nav) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,1fr);z-index:5}
 #nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--mute);font-size:13px;border-radius:0}
 #nav svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #nav button.on{color:var(--accent)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-height:700px){.pad button{height:54px}.digits div{height:58px;width:50px;font-size:34px}.types button{height:50px}}
 </style></head><body><main>
 <div class="top">
- <div id="sideLbl">Side not set<small>Pick a side in Setup</small></div>
- <div class="status"><button id="sync" class="chip bad">Not linked</button><button id="ocr" class="chip wait">Reader…</button></div>
+ <div id="post">Post not set<small>Choose this phone's post in Setup</small></div>
+ <button id="sync" class="chip bad">Not linked</button>
 </div>
 
-<section id="vCam">
- <div class="seg"><button id="bIn" class="on">Entry<b id="cIn">0</b></button><button id="bOut">Exit<b id="cOut">0</b></button></div>
+<section id="vCount">
  <button id="link" class="pri alert" hidden>Link Google Sheet first</button>
- <div id="camwrap"><video id="vid" playsinline muted autoplay></video><div id="guide"></div><div id="flash"></div>
-  <div id="lastbox" hidden><img id="lastimg" alt="Last photo"><div id="lastp"></div></div><div id="ctl"><div id="zinfo" hidden></div></div><div id="live" hidden></div>
-  <div id="fring"></div><div id="fpanel" hidden><div class="fm"><button data-f="auto">Auto</button><button data-f="lock">Lock</button><button data-f="manual">Manual</button></div><div class="fr" id="frow" hidden><span>Near</span><input type="range" id="fdist" step="any"><span>Far</span></div><div class="fn" id="fnote"></div></div><div id="zoom"></div><div id="msg">Starting camera…</div></div>
- <div class="bar"><span class="last" id="last">Fit the plate in the white box, then tap the vehicle type.</span><span id="qn"></span><button id="undo">Undo</button></div>
- <div class="types">
+ <div class="types" id="types">
   <button data-t="Car">Car<span>jeep, van</span></button><button data-t="LCV">LCV<span>light goods</span></button><button data-t="Truck">Truck<span>2 axle</span></button><button data-t="Bus">Bus<span>all buses</span></button><button data-t="MAV">MAV<span>3+ axle</span></button>
  </div>
- <div class="hint"><span>When the plate shows under the box with a green ring, tap the type.</span><label for="gs">Box size <input type="range" id="gs" min="40" max="100" value="100"></label></div>
+ <div id="padwrap">
+  <div class="display" id="display"><div class="digits" id="digits"><div></div><div></div><div></div><div></div></div><div id="hint">Pick the vehicle type, then type the last 4 digits.</div></div>
+  <div class="pad" id="pad">
+   <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+   <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+   <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+   <button data-k="del" class="fn" aria-label="Delete">⌫</button><button data-k="0">0</button><button data-k="ok" class="go" aria-label="Save">Save</button>
+  </div>
+ </div>
+ <div class="bar"><span id="cnt"></span><button id="undo">Undo last</button></div>
+ <div class="recent" id="recent"></div>
 </section>
 
-<section id="vLog" hidden>
- <div class="card"><h2>Today so far</h2><div id="sum" style="font-size:15px"></div></div>
+<section id="vRec" hidden>
+ <div class="card"><h2>Counts</h2><div class="scroll" id="sum"></div></div>
  <div class="card"><h2>Match and export</h2>
   <div style="font-size:15px">Count as transit if the vehicle exits within <input type="number" id="maxm" value="15" min="1"> min, and after at least <input type="number" id="minm" value="0" min="0"> min.</div>
+  <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos (one digit wrong, or two digits swapped)</label>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
- <div class="card"><div class="pair" style="margin-bottom:8px"><button id="lIn" class="sec">Entry list</button><button id="lOut" class="sec">Exit list</button></div>
-  <div style="display:flex;gap:8px;margin-bottom:6px"><input id="q" class="url" style="margin:0;flex:1;text-transform:uppercase" placeholder="Search plate" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="chk" class="sec" style="width:auto;white-space:nowrap">Needs check</button></div>
-  <div id="list"></div><button id="more" class="sec" style="margin-top:8px" hidden>Show more</button></div>
- <div class="card"><h2>Add from gallery</h2>
-  <div style="display:flex;align-items:center;gap:8px;font-size:15px">Vehicle type <select id="impT"><option>Car</option><option>LCV</option><option>Truck</option><option>Bus</option><option>MAV</option></select></div>
-  <label class="sec" style="display:block;text-align:center;margin-top:10px;border-radius:var(--r-md);font-weight:700">Choose photos<input type="file" accept="image/*" multiple id="fGal"></label>
-  <button id="clear" class="sec" style="margin-top:8px;color:var(--bad)">Clear this phone</button>
-  <div class="t" style="margin-top:8px">Keep both phones on automatic time. Plates in amber need a check: tap one to correct it. Corrections and deletions reach the other phone.</div></div>
+ <div class="card"><h2>Records</h2>
+  <div class="seg4" id="lseg"><button data-s="A-ENTRY">A Entry</button><button data-s="A-EXIT">A Exit</button><button data-s="B-ENTRY">B Entry</button><button data-s="B-EXIT">B Exit</button></div>
+  <input id="q" class="q" inputmode="numeric" placeholder="Search number" autocomplete="off">
+  <div id="list" style="margin-top:6px"></div><button id="more" class="sec" style="margin-top:8px" hidden>Show more</button></div>
 </section>
 
 <section id="vSet" hidden>
- <div class="card"><h2>This phone is</h2>
-  <div class="pair"><button id="gA" class="sec">Side A</button><button id="gB" class="sec">Side B</button></div>
-  <div class="t" style="margin-top:8px">Side A starts on Entry and Side B on Exit. You can switch on the camera screen.</div></div>
- <div class="card"><h2>Live reading</h2>
-  <button id="liveBtn" class="sec">On</button>
-  <div class="t" style="margin-top:8px">Reads the plate continuously while the vehicle approaches and shows it under the box. More accurate for moving vehicles; uses a little more battery.</div></div>
+ <div class="card"><h2>This phone's post</h2>
+  <div class="grid4" id="posts"><button class="sec" data-p="A-ENTRY">Side A · Entry</button><button class="sec" data-p="A-EXIT">Side A · Exit</button><button class="sec" data-p="B-ENTRY">Side B · Entry</button><button class="sec" data-p="B-EXIT">Side B · Exit</button></div>
+  <div class="t" style="margin-top:8px">Set each of the four phones to a different post. All four share the same Google Sheet.</div></div>
  <div class="card"><h2>Google Sheet</h2>
-  <div class="t">Paste the web app link from Apps Script. It ends with /exec.</div>
+  <div class="t">Paste the web app link from Apps Script. It ends with /exec. Use the same link on all four phones.</div>
   <input id="url" class="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false">
   <button id="saveUrl" class="pri">Save and test</button><div id="urlRes" style="margin-top:8px"></div></div>
  <div class="card"><h2>Status</h2><div id="sInfo" style="font-size:15px"></div>
   <button id="syncNow" class="sec" style="margin-top:10px">Sync now</button></div>
+ <div class="card"><h2>Other</h2>
+  <label class="chk" style="margin-top:0"><input type="checkbox" id="vib" checked>Vibrate on key press and save</label>
+  <button id="clear" class="sec" style="margin-top:10px;color:var(--bad)">Clear this phone</button>
+  <div class="t" style="margin-top:8px">Keep all four phones on automatic date and time, so entry and exit times line up.</div></div>
 </section>
+</main>
 <nav id="nav">
- <button id="tCam" class="on"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Camera</button>
- <button id="tLog"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r=".6"/><circle cx="4" cy="12" r=".6"/><circle cx="4" cy="18" r=".6"/></svg>Log</button>
+ <button id="tCount" class="on"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M8 18h2M12 18h2"/></svg>Count</button>
+ <button id="tRec"><svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r=".6"/><circle cx="4" cy="12" r=".6"/><circle cx="4" cy="18" r=".6"/></svg>Records</button>
  <button id="tSet"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Setup</button>
 </nav>
-<input type="file" accept="image/*" capture="environment" id="fCam">
-</main>
 <script>
-const KEY='tollLog_v2',TYPES=['Car','LCV','Truck','Bus','MAV'],PLATE=/^[A-Z]{2}\d{1,2}[A-Z]{0,3}\d{4}$/;
-const STATES=new Set('AN AP AR AS BR CH CG DD DL DN GA GJ HP HR JH JK KA KL LA LD MH ML MN MP MZ NL OD OR PB PY RJ SK TN TR TS UK UP WB'.split(' '));
-const TD={O:'0',Q:'0',D:'0',I:'1',L:'1',Z:'2',S:'5',B:'8',G:'6'},TA={'0':'O','1':'I','2':'Z','5':'S','8':'B','6':'G'};
-let recs=[],queue=[],busy=false,side='ENTRY',lside='ENTRY',view='cam',stream=null,pendType='Car',clearArm=false;
-const CKEY='tollCfg_v1';let cfg={url:'',gate:'',lastSrv:0};
+const KEY='tollLog_v2',CKEY='tollCfg_v1',TYPES=['Car','LCV','Truck','Bus','MAV'];
+const POSTS={'A-ENTRY':'Side A · Entry','A-EXIT':'Side A · Exit','B-ENTRY':'Side B · Entry','B-EXIT':'Side B · Exit'};
+let recs=[],view='count',cfg={url:'',gate:'',dir:'',lastSrv:0,type:'Car',vib:true},entry='',clearArm=false,lseg='',shown=100;
 try{Object.assign(cfg,JSON.parse(localStorage.getItem(CKEY)||'{}'))}catch(e){}
 const saveCfg=()=>{try{localStorage.setItem(CKEY,JSON.stringify(cfg))}catch(e){}};
-/* ---- storage: records live in IndexedDB (room for thousands of photos); localStorage only as a fallback ---- */
+const $=id=>document.getElementById(id);
+const pad2=n=>String(n).padStart(2,'0');
+const fmt=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+' '+pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())};
+const hm=t=>{const d=new Date(t);return pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds())};
+const digitsOf=s=>String(s||'').replace(/\D/g,'').slice(-4);     // older full plates count by their last 4 digits
+const postOf=r=>(r.gate||'?')+'-'+(r.side||'?');
+const myPost=()=>cfg.gate&&cfg.dir?cfg.gate+'-'+cfg.dir:'';
+const today=r=>{const a=new Date(r.t),b=new Date();return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()};
+const buzz=p=>{try{if(cfg.vib&&navigator.vibrate)navigator.vibrate(p)}catch(e){}};
+
+/* ---- storage: IndexedDB (localStorage as fallback) ---- */
 let idb=null,saveT=null;const sigs=new Map();
-const sigOf=r=>[r.updated,r.status,r.plate,r.type,r.side,r.gate,r.deleted,r.dirty,r.lc,r.src,r.hint,r.gdone,(r.thumb||'').length].join('|');
+const sigOf=r=>[r.updated,r.plate,r.type,r.side,r.gate,r.deleted,r.dirty].join('|');
 function idbOpen(){return new Promise((ok,no)=>{try{const q=indexedDB.open('tollLog',1);q.onupgradeneeded=()=>q.result.createObjectStore('recs',{keyPath:'id'});q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}})}
 async function loadRecs(){
   let got=[];
   try{idb=await idbOpen();got=await new Promise((ok,no)=>{const q=idb.transaction('recs').objectStore('recs').getAll();q.onsuccess=()=>ok(q.result||[]);q.onerror=()=>no(q.error)})}catch(e){idb=null}
   let old=[];try{old=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
-  if(idb){const have=new Set(got.map(r=>r.id));got=got.concat(old.filter(r=>!have.has(r.id)))}else got=old;   // move old-version records across
-  got.forEach(r=>{if(r.status==='queued'||r.status==='reading')r.status='failed';
-    if(r.updated==null){r.updated=r.t;r.own=true;r.dirty=1;r.deleted=0;r.gate=r.gate||cfg.gate||''}});
-  const mine=new Set(recs.map(r=>r.id));recs=got.filter(r=>!mine.has(r.id)).concat(recs).sort((a,b)=>a.t-b.t);   // keep anything tapped while loading
+  if(idb){const have=new Set(got.map(r=>r.id));got=got.concat(old.filter(r=>!have.has(r.id)))}else got=old;
+  got.forEach(r=>{if(r.updated==null){r.updated=r.t;r.own=true;r.dirty=1;r.deleted=0}});
+  const mine=new Set(recs.map(r=>r.id));recs=got.filter(r=>!mine.has(r.id)).concat(recs).sort((a,b)=>a.t-b.t);
   if(idb){await flush();if(old.length)try{localStorage.removeItem(KEY)}catch(e){}}
 }
 function flush(){
   clearTimeout(saveT);saveT=null;
-  if(!idb){try{localStorage.setItem(KEY,JSON.stringify(recs))}catch(e){try{localStorage.setItem(KEY,JSON.stringify(recs.map(r=>({...r,thumb:''}))))}catch(e2){}}return Promise.resolve()}
+  if(!idb){try{localStorage.setItem(KEY,JSON.stringify(recs.map(r=>({...r,thumb:''}))))}catch(e){}return Promise.resolve()}
   return new Promise(ok=>{try{const tx=idb.transaction('recs','readwrite'),st=tx.objectStore('recs'),ids=new Set();
     for(const r of recs){ids.add(r.id);const g=sigOf(r);if(sigs.get(r.id)!==g){st.put(r);sigs.set(r.id,g)}}
     for(const id of [...sigs.keys()])if(!ids.has(id)){st.delete(id);sigs.delete(id)}
     tx.oncomplete=ok;tx.onerror=tx.onabort=()=>{sigs.clear();ok()}}catch(e){sigs.clear();ok()}});
 }
+const save=()=>{if(!saveT)saveT=setTimeout(flush,300)};
 addEventListener('pagehide',()=>flush());document.addEventListener('visibilitychange',()=>{if(document.hidden)flush()});
-if(cfg.gate)side=cfg.gate==='A'?'ENTRY':'EXIT';
-const $=id=>document.getElementById(id);
 const live=()=>recs.filter(r=>!r.deleted);
 function touch(r){r.updated=Date.now();r.dirty=1;save();kick()}
-function refreshLog(){if(view==='log'){summary();if(!$('list').contains(document.activeElement))list()}}
-const save=()=>{if(!saveT)saveT=setTimeout(flush,300)};
-const fmt=t=>{const d=new Date(t),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())};
-const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-function sim(a,b){if(!a||!b)return 0;const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c}return 1-p[n]/Math.max(m,n)}
 
-/* ---- plate text extraction (Indian format) ---- */
-function extract(txt){
-  const s=norm(txt);
-  for(let len=11;len>=8;len--)for(let i=0;i+len<=s.length;i++){
-    const t=s.slice(i,i+len).split('');
-    [0,1].forEach(k=>t[k]=TA[t[k]]||t[k]);
-    for(let k=t.length-4;k<t.length;k++)t[k]=TD[t[k]]||t[k];
-    t[2]=TD[t[2]]||t[2];
-    const c=t.join('');if(PLATE.test(c)&&STATES.has(c.slice(0,2)))return c;
-  }return '';
+/* ---- count screen: type + 4 digits ---- */
+function header(){
+  const p=$('post'),mp=myPost();p.textContent=mp?POSTS[mp]:'Post not set';
+  const s=document.createElement('small');s.textContent=mp?'Logging '+(cfg.dir==='ENTRY'?'entries':'exits')+' on side '+cfg.gate:'Choose this phone\'s post in Setup';p.append(s);
+  const w=$('padwrap');if(mp){w.classList.remove('blocked');w.removeAttribute('data-msg')}else{w.classList.add('blocked');w.dataset.msg='Choose this phone\'s post in Setup first (Side A/B, Entry/Exit).'}
 }
-/* ---- OCR engine: loads itself in the background, retries automatically ---- */
-let ocrSt=['Loading…','wait'];
-function ocrChip(){const e=$('ocr');if(gOk){e.textContent='Google';e.className='chip ok'}else if(fastOk){e.textContent='Reader';e.className='chip ok'}else if(fastOk===null){e.textContent='Loading…';e.className='chip wait'}else{e.textContent='Reader off';e.className='chip bad'}}
-const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-/* ---- plate reader: plate finder (YOLOv9) + plate reader (fast-plate-ocr XS), run in a background worker ---- */
-const ORT='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/',FAL='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_';
-const WCODE=`let det,ocr;
-self.onmessage=async e=>{const m=e.data;try{
- if(m.t==='init'){importScripts(m.ort+'ort.min.js');ort.env.wasm.wasmPaths=m.ort;ort.env.wasm.numThreads=1;const o={executionProviders:['wasm']};
-  det=await ort.InferenceSession.create(m.det,o);ocr=await ort.InferenceSession.create(m.ocr,o);postMessage({id:m.id});return}
- if(m.t==='det'){const out=await det.run({[det.inputNames[0]]:new ort.Tensor('float32',m.x,[1,3,m.s,m.s])}),o=out[det.outputNames[0]];
-  postMessage({id:m.id,d:Float32Array.from(o.data),n:o.dims[0]});return}
- if(m.t==='ocr'){const out=await ocr.run({[ocr.inputNames[0]]:new ort.Tensor('uint8',m.x,[m.b,64,128,3])}),p=out.plate||out[ocr.outputNames[0]];
-  postMessage({id:m.id,d:Float32Array.from(p.data),dims:p.dims});return}
-}catch(err){postMessage({id:m.id,err:String(err&&err.message||err)})}};`;
-let fw=null,fwq={},fwid=0,fastP=null,fastOk=null;
-let wchain=Promise.resolve();
-function wcall1(msg,tr){return new Promise((ok,no)=>{const id=++fwid;fwq[id]={ok,no};fw.postMessage({...msg,id},tr||[])})}
-function wcall(msg,tr){const p=wchain.then(()=>wcall1(msg,tr));wchain=p.catch(()=>{});return p}
-function loadFast(){
-  if(fastP)return fastP;fastOk=null;ocrChip();
-  fastP=(async()=>{
-    if(fw)fw.terminate();
-    fw=new Worker(URL.createObjectURL(new Blob([WCODE],{type:'text/javascript'})));
-    fw.onmessage=e=>{const q=fwq[e.data.id];delete fwq[e.data.id];if(q)e.data.err?q.no(new Error(e.data.err)):q.ok(e.data)};
-    fw.onerror=e=>{for(const k in fwq){fwq[k].no(new Error('worker'));delete fwq[k]}};
-    await wcall({t:'init',ort:ORT,det:new URL('models/plate_finder.onnx?v=1',location.href).href,ocr:new URL('models/plate_reader.onnx?v=2',location.href).href});
-    fastOk=true;ocrChip();pump();return true;
-  })().catch(e=>{console.log('reader',e);fastP=null;fastOk=false;ocrChip();setTimeout(loadFast,8000);return false});
-  return fastP;
+function showTypes(){
+  const L=live(),mp=myPost();
+  document.querySelectorAll('#types button').forEach(b=>{b.className=b.dataset.t===cfg.type?'on':'';
+    const n=L.filter(r=>postOf(r)===mp&&r.type===b.dataset.t&&today(r)).length;b.querySelector('span').textContent=n?n+' today':b.dataset.sub});
 }
-async function fastReady(ms){if(fastOk)return true;return Promise.race([loadFast(),sleep(ms).then(()=>false)])}
-$('ocr').onclick=()=>{if(!fastOk)loadFast()};
-async function fdetect(cv){
-  const S=384,W=cv.width,H=cv.height,r=Math.min(S/W,S/H),nw=Math.round(W*r),nh=Math.round(H*r),pw=Math.floor((S-nw)/2),ph=Math.floor((S-nh)/2);
-  const c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');x.fillStyle='rgb(114,114,114)';x.fillRect(0,0,S,S);x.drawImage(cv,pw,ph,nw,nh);
-  const a=x.getImageData(0,0,S,S).data,A=S*S,f=new Float32Array(3*A);
-  for(let i=0;i<A;i++){f[i]=a[i*4]/255;f[A+i]=a[i*4+1]/255;f[2*A+i]=a[i*4+2]/255}
-  const o=await wcall({t:'det',x:f,s:S},[f.buffer]),d=o.d;let best=null;
-  for(let i=0;i<o.n;i++){const s=d[i*7+6];if(s>0.25&&(!best||s>best.s))best={s,x1:(d[i*7+1]-pw)/r,y1:(d[i*7+2]-ph)/r,x2:(d[i*7+3]-pw)/r,y2:(d[i*7+4]-ph)/r}}
-  return best;
+document.querySelectorAll('#types button').forEach(b=>{b.dataset.sub=b.querySelector('span').textContent;b.onclick=()=>{cfg.type=b.dataset.t;saveCfg();buzz(15);showTypes();
+  hint(entry?'':cfg.type+' selected. Type the last 4 digits.')}});
+function showDigits(){
+  const D=[...$('digits').children];D.forEach((d,i)=>{d.textContent=entry[i]||'';d.className=i===entry.length?'cur':''});
 }
-function patch(cv,x1,y1,x2,y2){       // 128x64 RGB, plus a black-on-white version (helps yellow and green plates)
-  x1=Math.max(0,x1);y1=Math.max(0,y1);x2=Math.min(cv.width,x2);y2=Math.min(cv.height,y2);
-  const c=document.createElement('canvas');c.width=128;c.height=64;const x=c.getContext('2d');x.imageSmoothingQuality='high';
-  x.drawImage(cv,x1,y1,Math.max(1,x2-x1),Math.max(1,y2-y1),0,0,128,64);
-  const a=x.getImageData(0,0,128,64).data,N=128*64,u=new Uint8Array(N*3),g=new Uint8Array(N*3),gr=new Float32Array(N);
-  let lo=255,hi=0,sum=0;
-  for(let i=0;i<N;i++){u[i*3]=a[i*4];u[i*3+1]=a[i*4+1];u[i*3+2]=a[i*4+2];const v=a[i*4]*.299+a[i*4+1]*.587+a[i*4+2]*.114;gr[i]=v;if(v<lo)lo=v;if(v>hi)hi=v}
-  const k=255/Math.max(1,hi-lo);for(let i=0;i<N;i++){gr[i]=(gr[i]-lo)*k;sum+=gr[i]}
-  const inv=sum/N<110;for(let i=0;i<N;i++){const v=inv?255-gr[i]:gr[i];g[i*3]=g[i*3+1]=g[i*3+2]=v}
-  return[u,g];
+function hint(t,warn){const h=$('hint');if(t!=null)h.textContent=t;h.className=warn?'warn':''}
+function key(k){
+  if(!myPost())return;
+  if(k==='del'){entry=entry.slice(0,-1);buzz(10)}
+  else if(k==='ok'){if(entry.length)commit();else hint('Type the digits first.',true);return}
+  else if(entry.length<4){entry+=k;buzz(12)}
+  showDigits();
+  if(entry.length===4)commit();
+  else if(k!=='del')hint(cfg.type+' · '+entry.length+' of 4 digits');
 }
-/* Indian plate pattern: state(2 letters) district(1-2 digits) series(0-3 letters) number(4 digits), or BH series */
-const STL=[...STATES],DIGI=[0,1,2,3,4,5,6,7,8,9],LETI=[...'ABCDEFGHJKLMNPQRSTUVWXYZ'].map(c=>FAL.indexOf(c)),PADI=36,TPL=[];
-for(const [nd,pn] of [[2,0],[1,-1.5]])for(const [k,pk] of [[2,0],[1,-.5],[0,-1.5],[3,-1.5]])if(2+nd+k+4<=10)TPL.push([['S','S',...Array(nd).fill('D'),...Array(k).fill('L'),'D','D','D','D'],pn+pk]);
-TPL.push([['D','D','B','H','D','D','D','D','L','L'],-1.5]);
-function cdecode(L,off,K){            // L = log-probs, slot i char c at L[off+i*K+c]
-  let ss=-1e9,sv='';for(const st of STL){const v=L[off+FAL.indexOf(st[0])]+L[off+K+FAL.indexOf(st[1])];if(v>ss){ss=v;sv=st}}
-  let best=null;
-  for(const [t,prior] of TPL){let sc=prior,out='';
-    for(let i=0;i<t.length;i++){const c=t[i];if(c==='S')continue;let j;
-      if(c==='D'||c==='L'){const set=c==='D'?DIGI:LETI;j=set[0];for(const q of set)if(L[off+i*K+q]>L[off+i*K+j])j=q}else j=FAL.indexOf(c);
-      sc+=L[off+i*K+j];out+=FAL[j]}
-    for(let i=t.length;i<10;i++)sc+=L[off+i*K+PADI];
-    if(t[0]==='S'){if(t[3]==='D'){sc+=ss;out=sv+out}else{sc+=L[off+FAL.indexOf('D')]+L[off+K+FAL.indexOf('L')];out='DL'+out}}   // 1-digit district codes exist only in Delhi
-    if(!best||sc>best[0])best=[sc,out]}
-  return best;
+document.querySelectorAll('#pad button').forEach(b=>b.addEventListener('click',()=>key(b.dataset.k)));
+let dlT=null;$('pad').querySelector('[data-k=del]').addEventListener('pointerdown',()=>{dlT=setTimeout(()=>{entry='';showDigits();hint('Cleared.');buzz(20)},600)});
+addEventListener('pointerup',()=>clearTimeout(dlT));
+addEventListener('keydown',e=>{if(view!=='count'||e.target.tagName==='INPUT')return;
+  if(/^\d$/.test(e.key))key(e.key);else if(e.key==='Backspace')key('del');else if(e.key==='Enter')key('ok')});
+function commit(){
+  const now=Date.now(),d=entry,mp=myPost();
+  const r={id:now+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side:cfg.dir,t:now,type:cfg.type,plate:d,updated:now,deleted:0,own:true,dirty:1};
+  const dup=live().filter(x=>postOf(x)===mp&&digitsOf(x.plate)===d&&now-x.t<120000).pop();
+  recs.push(r);save();kick(800);
+  entry='';showDigits();buzz([25,40,25]);
+  const D=$('display');D.classList.remove('saved');void D.offsetWidth;D.classList.add('saved');
+  if(dup)hint('Saved '+d+' '+r.type+' – same number as '+Math.round((now-dup.t)/1000)+' s ago. Undo if it was entered twice.',true);
+  else hint('Saved '+d+' · '+r.type+'. Next vehicle.');
+  showTypes();recent();counts();
 }
-async function fastRead(frames,liveMode){
-  const cv=frames[0],b=await fdetect(cv),W=cv.width,H=cv.height,boxes=[];
-  if(liveMode&&!b)return{found:false,votes:{},q:{},cnt:{},n:0,raw:''};
-  if(b){const w=b.x2-b.x1,h=b.y2-b.y1;for(const [fx,fy] of [[0,0],[.04,.08],[.10,.18]])boxes.push([b.x1-w*fx,b.y1-h*fy,b.x2+w*fx,b.y2+h*fy])}
-  else boxes.push([0,0,W,H],[W*.08,H*.1,W*.92,H*.9],[W*.15,H*.2,W*.85,H*.8]);   // no plate found: the zoomed box is the plate
-  const ps=[];for(const f of frames)for(const bx of boxes){const sx=f.width/W,sy=f.height/H;ps.push(...patch(f,bx[0]*sx,bx[1]*sy,bx[2]*sx,bx[3]*sy))}
-  const P=128*64*3,buf=new Uint8Array(ps.length*P);ps.forEach((u,i)=>buf.set(u,i*P));
-  const o=await wcall({t:'ocr',x:buf,b:ps.length},[buf.buffer]),d=o.d,SL=o.dims[1],K=o.dims[2],L=new Float32Array(d.length);
-  for(let i=0;i<d.length;i++)L[i]=Math.log(d[i]+1e-9);
-  const votes={},q={},cnt={};let raw='';
-  for(let i=0;i<ps.length;i++){
-    if(!raw){let s='';for(let k=0;k<SL;k++){let mi=0;for(let c=1;c<K;c++)if(d[(i*SL+k)*K+c]>d[(i*SL+k)*K+mi])mi=c;if(mi!==PADI)s+=FAL[mi]}raw=s}
-    const [sc,txt]=cdecode(L,i*SL*K,K),w=Math.exp(sc/10);   // w = average per-character certainty of this read
-    votes[txt]=(votes[txt]||0)+w*w*w;q[txt]=(q[txt]||0)+w;cnt[txt]=(cnt[txt]||0)+1}   // sure reads count far more than blurry ones
-  return{votes,q,cnt,n:ps.length,raw,found:!!b,box:b};
-}
-function decide(V,Q,C){        // best plate = most weighted votes; conf = certainty of the reads that agree; share = how much they agree
-  const all=Object.values(V).reduce((a,v)=>a+v,0),top=Object.entries(V).sort((x,y)=>y[1]-x[1])[0];
-  const conf=top?Q[top[0]]/C[top[0]]:0,share=top&&all?top[1]/all:0;return{plate:top&&conf>=0.4?top[0]:'',conf,share};   // below 0.4 = 'not read' (tuned on 126 labelled toll photos)
-}
-/* ---- live reading: read the plate continuously while the vehicle approaches ---- */
-let hist=[],liveOn=cfg.live!==false;
-function liveBtn(){const b=$('liveBtn');b.textContent=liveOn?'On – tap to turn off':'Off – tap to turn on';b.className='sec'+(liveOn?' on':'')}
-$('liveBtn').onclick=()=>{liveOn=!liveOn;cfg.live=liveOn;saveCfg();liveBtn();if(!liveOn){hist=[];$('live').hidden=true}};liveBtn();
-function histVotes(t,win){const V={},Q={},C={};for(const h of hist){const age=t-h.t;if(age<0||age>win)continue;const w=Math.pow(.5,age/800);for(const k in h.votes){V[k]=(V[k]||0)+h.votes[k]*w;Q[k]=(Q[k]||0)+h.q[k]*w;C[k]=(C[k]||0)+h.cnt[k]*w}}return{V,Q,C}}
-function showLive(){const e=$('live');if(!e)return;const{V,Q,C}=histVotes(Date.now(),1500),d=decide(V,Q,C);
-  if(d.plate&&d.conf>.5&&d.share>.25){e.hidden=false;e.textContent=d.plate;e.className=d.conf>.75&&d.share>.4?'sure':''}else e.hidden=true}
-async function liveLoop(){
-  for(;;){await sleep(150);
-    if(!liveOn||view!=='cam'||document.hidden||!fastOk||busy||queue.length||!stream||!$('vid').videoWidth)continue;
-    try{const o=await fastRead([grab(cropRect(),960)],true),t=Date.now();
-      if(o.found)hist.push({t,votes:o.votes,q:o.q,cnt:o.cnt});hist=hist.filter(h=>t-h.t<4000);showLive()}catch(e){await sleep(1000)}}
-}
-async function pump(){
-  if(busy)return;busy=true;
-  while(queue.length){
-    const j=queue[0],r=recs.find(x=>x.id===j.id);
-    if(!r||r.deleted){queue.shift();continue}
-    if(!(await fastReady(20000))){busy=false;setTimeout(pump,5000);return}   // reader still downloading
-    queue.shift();
-    if(r.src==='m'||r.src==='g'){r.status='done';continue}
-    r.status='reading';counts();
-    try{const f=await fastRead(j.frames||[j.canvas]),V={...f.votes},Q={...f.q},C={...f.cnt};
-      if(j.hv)for(const k in j.hv.V){V[k]=(V[k]||0)+j.hv.V[k];Q[k]=(Q[k]||0)+j.hv.Q[k];C[k]=(C[k]||0)+j.hv.C[k]}   // add what live reading saw just before the tap
-      const o={...decide(V,Q,C),raw:f.raw};
-      if(o.plate&&r.src!=='m'&&r.src!=='g'){if(o.plate!==r.plate){r.plate=o.plate;r.updated=Date.now();r.dirty=1}r.src='f';r.lc=(o.conf<0.65||o.share<0.5)?1:0;r.hint=''}
-      else if(!r.plate)r.hint=o.raw.slice(0,12);
-      r.status='done'}catch(e){console.log(e);r.status='failed'}
-    save();counts();refreshLog();showLast(r);kick();
-  }busy=false;counts();
-}
-/* ---- Google reader (Drive OCR through your Apps Script) ---- */
-let gOk=null,gRun=0,lastId=null;const gq=[];
-function gocr(id,jpeg){if(!cfg.url||gOk===false)return;gq.push({id,jpeg,n:0});gpump()}
-function gpump(){
-  while(gRun<3&&gq.length){const j=gq.shift();gRun++;
-    (async()=>{const r=recs.find(x=>x.id===j.id);
-      try{if(!r||r.deleted)return;
-        const res=await api({action:'ocr',image:j.jpeg});gOk=true;r.gdone=1;
-        const p=extract(res.text||'');
-        if(p&&r.src!=='m'){if(r.plate!==p){r.plate=p;r.updated=Date.now();r.dirty=1}r.src='g';r.hint='';r.status='done'}
-        else if(!p&&!r.plate)r.hint=norm(res.text).slice(0,12);
-        if(fastOk!==true&&r.status==='queued'&&r.src==='g'){r.status='done';queue=queue.filter(q=>q.id!==r.id)}
-        save();counts();refreshLog();showLast(r);kick();
-      }catch(e){const m=String(e.message||e);
-        if(/is not defined|unknown action/i.test(m)){gOk=false;if(r)r.gdone=1}
-        else if(j.n<2){j.n++;setTimeout(()=>{gq.push(j);gpump()},4000)}else if(r)r.gdone=1}
-      finally{gRun--;gpump();ocrChip()}})();
-  }
-}
-function addRec(cv,mode,t,type,frames,hv){
-  const mk=(w,q)=>{const k=Math.min(1,w/cv.width),c=document.createElement('canvas');c.width=Math.round(cv.width*k);c.height=Math.round(cv.height*k);
-    const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(cv,0,0,c.width,c.height);return c.toDataURL('image/jpeg',q)};
-  const r={id:Date.now()+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side,t,type,plate:'',hint:'',status:'queued',thumb:mk(220,.6),src:'',
-    updated:Date.now(),deleted:0,own:true,dirty:1};
-  recs.push(r);lastId=r.id;lastImg=mk(360,.7);queue.push({id:r.id,canvas:cv,mode,frames:frames||[cv],hv});save();counts();showLast(r);
-  if(cfg.url&&gOk!==false)gocr(r.id,mk(1600,.92).split(',')[1]);
-  pump();
-}
-let lastImg='';
-function showLast(r){if(!r||r.id!==lastId)return;$('lastbox').hidden=false;if(lastImg)$('lastimg').src=lastImg;
-  const P=$('lastp');P.textContent=r.plate||(r.status==='done'||r.gdone?'? not read':'reading…');
-  const sm=document.createElement('small');sm.textContent=r.type+', '+(r.side==='ENTRY'?'entry':'exit');P.append(sm);
-  P.style.color=r.plate&&(r.lc||!PLATE.test(r.plate))?'var(--warn)':'var(--ink)';P.style.opacity=r.plate?1:.75;
-  $('last').textContent=r.plate?'Last: '+r.plate+', '+r.type:'Reading '+r.type+'…';}
-/* ---- camera ---- */
-let track=null,caps={},zoomHW=false,zoomV=1,torchOn=false,zBusy=false,zWant=null;
-function fit(){
-  if(view!=='cam')return;const w=$('camwrap'),top=w.getBoundingClientRect().top,below=$('vCam').getBoundingClientRect().bottom-w.getBoundingClientRect().bottom;
-  w.style.height=Math.max(280,Math.round(innerHeight-top-below-$('nav').offsetHeight-14))+'px';
-}
-addEventListener('resize',fit);
-$('vid').addEventListener('loadedmetadata',()=>{fit();zinfo()});
-async function startCam(){
-  const v=$('vid');
-  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}},audio:false})}
-  catch(e){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}
-    catch(e2){$('msg').hidden=false;$('msg').textContent='Camera blocked. Allow camera for this site in Chrome (lock icon › Permissions), then reload. Tapping a type opens the phone camera instead.';return}}
-  track=stream.getVideoTracks()[0];caps=track.getCapabilities?track.getCapabilities():{};
-  await applyFocus(cfg.focus||'auto',true);
-  zoomHW=!!(caps.zoom&&caps.zoom.max>1);buildZoom();
-  v.srcObject=stream;try{await v.play()}catch(e){}
-  fit();$('msg').hidden=true;zinfo();
-}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!stream||stream.getTracks().every(t=>t.readyState==='ended')))startCam()});
-function zmax(){return zoomHW?caps.zoom.max:4}
-function zmin(){return zoomHW?(caps.zoom.min||1):1}
-function buildZoom(){
-  const Z=$('zoom');Z.textContent='';
-  const lv=(zoomHW?[1,2,3,5,8,10]:[1,1.5,2,3,4]).filter(z=>z>=zmin()&&z<=zmax());
-  if(zoomHW&&!lv.includes(zmax())&&zmax()<=12)lv.push(zmax());
-  lv.forEach(z=>{const b=document.createElement('button');b.textContent=(Math.round(z*10)/10)+'×';b.dataset.z=z;b.onclick=()=>setZoom(z);Z.append(b)});
-  const K=$('ctl');K.querySelectorAll('button').forEach(b=>b.remove());
-  {const b=document.createElement('button');b.id='fbtn';b.textContent='Focus';b.onclick=()=>{$('fpanel').hidden=!$('fpanel').hidden;focusUI()};K.prepend(b)}
-  if(caps.torch){const b=document.createElement('button');b.id='torch';b.textContent='🔦';b.onclick=async()=>{torchOn=!torchOn;try{await track.applyConstraints({advanced:[{torch:torchOn}]})}catch(e){torchOn=false}b.className=torchOn?'on':''};$('fbtn').after(b)}
-  markZoom();
-}
-/* ---- focus: Auto (keeps refocusing), Lock (focus once, then hold), Manual (slider); tap the picture to focus there ---- */
-const fcan=m=>!!(caps.focusMode&&caps.focusMode.includes(m));
-async function applyFocus(mode,quiet){
-  if(!track)return;let ok=true;
-  try{
-    if(mode==='auto'){if(fcan('continuous'))await track.applyConstraints({advanced:[{focusMode:'continuous'}]});else ok=false}
-    else if(mode==='lock'){
-      if(fcan('single-shot')){await track.applyConstraints({advanced:[{focusMode:'single-shot'}]});await sleep(900)}
-      const d=(track.getSettings()||{}).focusDistance;
-      if(fcan('manual')&&d!=null)await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]});
-      else if(fcan('manual')&&cfg.fdist!=null)await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:cfg.fdist}]});
-      else if(!fcan('single-shot'))ok=false;
-      if(d!=null)cfg.fdist=d;
-    }
-    else if(mode==='manual'){if(fcan('manual')&&caps.focusDistance){const d=cfg.fdist!=null?cfg.fdist:(track.getSettings().focusDistance??caps.focusDistance.min);
-      await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]});cfg.fdist=d}else ok=false}
-  }catch(e){ok=false}
-  if(ok){cfg.focus=mode;saveCfg()}else if(!quiet)$('fnote').textContent='This phone\'s browser doesn\'t allow '+mode+' focus. Tap the picture to refocus instead.';
-  focusUI();return ok;
-}
-function focusUI(){
-  const P=$('fpanel');if(!P)return;const m=cfg.focus||'auto',none=!caps.focusMode||!caps.focusMode.length;
-  P.querySelectorAll('[data-f]').forEach(b=>{b.className=b.dataset.f===m?'on':'';
-    b.disabled=none||(b.dataset.f==='auto'&&!fcan('continuous'))||(b.dataset.f==='lock'&&!fcan('manual')&&!fcan('single-shot'))||(b.dataset.f==='manual'&&!(fcan('manual')&&caps.focusDistance))});
-  const fb=$('fbtn');if(fb)fb.className=m!=='auto'||!P.hidden?'on':'';if(fb)fb.textContent=m==='lock'?'Focus 🔒':m==='manual'?'Focus ✋':'Focus';
-  const R=$('frow'),I=$('fdist');R.hidden=m!=='manual'||!caps.focusDistance;
-  if(caps.focusDistance){I.min=caps.focusDistance.min;I.max=caps.focusDistance.max;I.step=caps.focusDistance.step||'any';if(cfg.fdist!=null)I.value=cfg.fdist}
-  const N=$('fnote');if(!N.dataset.keep)N.textContent=none?'This phone\'s browser doesn\'t let websites control focus. It stays on auto-focus.':
-    m==='lock'?'Focus is held. Tap the picture to refocus on a spot, then it holds again.':m==='manual'?'Slide until the plate area looks sharp.'+(cfg.fdist!=null?' (≈ '+(+cfg.fdist).toFixed(2)+' m)':''):'The camera refocuses by itself. Tap the picture to focus on a spot.';
-}
-document.querySelectorAll('#fpanel [data-f]').forEach(b=>b.onclick=async()=>{const ok=await applyFocus(b.dataset.f);if(ok&&b.dataset.f!=='manual')setTimeout(()=>{$('fpanel').hidden=true;focusUI()},1200)});
-let fdT=null;$('fdist').oninput=e=>{cfg.fdist=+e.target.value;clearTimeout(fdT);fdT=setTimeout(async()=>{try{await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:cfg.fdist}]})}catch(x){}saveCfg();focusUI()},60)};
-async function tapFocus(cx,cy){            // focus on the tapped point, then return to the chosen mode
-  if(!track)return;const v=$('vid'),W=v.videoWidth,H=v.videoHeight,vr=v.getBoundingClientRect(),wr=$('camwrap').getBoundingClientRect();
-  const sc=Math.max(vr.width/W,vr.height/H),ox=vr.left+(vr.width-W*sc)/2,oy=vr.top+(vr.height-H*sc)/2;
-  const x=Math.min(1,Math.max(0,(cx-ox)/(W*sc))),y=Math.min(1,Math.max(0,(cy-oy)/(H*sc)));
-  const R=$('fring');R.style.left=(cx-wr.left)+'px';R.style.top=(cy-wr.top)+'px';R.className='show';setTimeout(()=>R.className='',900);
-  const c={};if(caps.pointsOfInterest!==undefined)c.pointsOfInterest=[{x,y}];
-  if(fcan('single-shot'))c.focusMode='single-shot';else if(fcan('continuous'))c.focusMode='continuous';
-  try{if(Object.keys(c).length)await track.applyConstraints({advanced:[c]})}catch(e){}
-  if((cfg.focus||'auto')==='lock'){await sleep(900);const d=(track.getSettings()||{}).focusDistance;
-    if(d!=null&&fcan('manual')){try{await track.applyConstraints({advanced:[{focusMode:'manual',focusDistance:d}]})}catch(e){}cfg.fdist=d;saveCfg()}focusUI()}
-  else if((cfg.focus||'auto')==='auto'&&fcan('continuous')){await sleep(1500);try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}
-}
-let tdown=null;
-$('camwrap').addEventListener('pointerdown',e=>{tdown=e.isPrimary?{x:e.clientX,y:e.clientY,t:Date.now()}:null});
-$('camwrap').addEventListener('pointerup',e=>{if(!tdown||pinch)return;const moved=Math.hypot(e.clientX-tdown.x,e.clientY-tdown.y),dt=Date.now()-tdown.t;tdown=null;
-  if(moved<12&&dt<500&&!e.target.closest('button,#fpanel'))tapFocus(e.clientX,e.clientY)});
-function markZoom(){document.querySelectorAll('#zoom button[data-z]').forEach(b=>b.className=Math.abs(+b.dataset.z-zoomV)<.05?'on':'')}
-async function setZoom(z){
-  z=Math.max(zmin(),Math.min(zmax(),z));zoomV=z;markZoom();zinfo();
-  if(!zoomHW){$('vid').style.transform=z>1?'scale('+z+')':'';return}
-  zWant=z;if(zBusy)return;zBusy=true;
-  while(zWant!=null){const w=zWant;zWant=null;try{await track.applyConstraints({advanced:[{zoom:w}]})}catch(e){}}
-  zBusy=false;
-}
-function zinfo(){const v=$('vid'),e=$('zinfo');if(!v.videoWidth)return;e.hidden=false;e.textContent=(Math.round(zoomV*10)/10)+'× · '+Math.min(v.videoWidth,v.videoHeight)+'p'+(zoomHW?'':' (digital)')}
-let pinch=null;
-$('camwrap').addEventListener('touchstart',e=>{if(e.touches.length===2){const[a,b]=e.touches;pinch={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),z:zoomV}}},{passive:true});
-$('camwrap').addEventListener('touchmove',e=>{if(pinch&&e.touches.length===2){const[a,b]=e.touches;setZoom(pinch.z*Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)/pinch.d)}},{passive:true});
-$('camwrap').addEventListener('touchend',()=>{pinch=null});
-function guide(){const s=$('gs').value/100;$('guide').style.width=(86*s)+'%';$('guide').style.height=(30*s)+'%';$('live').style.top='calc(50% + '+(15*s)+'% + 10px)'}$('gs').oninput=guide;
-function cropRect(){   // the yellow box, in camera pixels (handles cover-fit and digital zoom)
-  const v=$('vid'),W=v.videoWidth,H=v.videoHeight,vr=v.getBoundingClientRect(),gr=$('guide').getBoundingClientRect();
-  const sc=Math.max(vr.width/W,vr.height/H),ox=vr.left+(vr.width-W*sc)/2,oy=vr.top+(vr.height-H*sc)/2;
-  let x=Math.max(0,(gr.left-ox)/sc),y=Math.max(0,(gr.top-oy)/sc),x2=Math.min(W,(gr.right-ox)/sc),y2=Math.min(H,(gr.bottom-oy)/sc);
-  return{x,y,w:Math.max(8,x2-x),h:Math.max(8,y2-y)};
-}
-function grab(r,mw){const v=$('vid'),k=Math.min(1,(mw||1800)/r.w),c=document.createElement('canvas');c.width=Math.round(r.w*k);c.height=Math.round(r.h*k);
-  c.getContext('2d').drawImage(v,r.x,r.y,r.w,r.h,0,0,c.width,c.height);return c}
-function sharp(c){   // focus score: variance of the Laplacian on a small grey copy
-  const w=Math.min(360,c.width),h=Math.max(3,Math.round(c.height*w/c.width)),t=document.createElement('canvas');t.width=w;t.height=h;
-  const x=t.getContext('2d');x.drawImage(c,0,0,w,h);const a=x.getImageData(0,0,w,h).data,g=new Float32Array(w*h);
-  for(let i=0;i<w*h;i++)g[i]=a[i*4]*.3+a[i*4+1]*.59+a[i*4+2]*.11;
-  let s=0,s2=0,n=0;for(let yy=1;yy<h-1;yy++)for(let xx=1;xx<w-1;xx++){const i=yy*w+xx,l=4*g[i]-g[i-1]-g[i+1]-g[i-w]-g[i+w];s+=l;s2+=l*l;n++}
-  return n?s2/n-(s/n)**2:0;
-}
-function shot(type){
-  const v=$('vid');if(!stream||!v.videoWidth)return false;
-  const t=Date.now(),r=cropRect(),fr=[grab(r)],hv=histVotes(t,2500);hist=[];$('live').hidden=true;
-  $('flash').style.opacity=.6;setTimeout(()=>$('flash').style.opacity=0,110);try{navigator.vibrate&&navigator.vibrate(30)}catch(e){}
-  (async()=>{for(let i=0;i<2;i++){await sleep(120);try{fr.push(grab(r))}catch(e){}}
-    const sc=fr.map(c=>[sharp(c),c]).sort((x,y)=>y[0]-x[0]).map(x=>x[1]);   // sharpest first; all three are read
-    addRec(sc[0],'crop',t,type,sc,hv)})();
-  return true;
-}
-document.querySelectorAll('.types button').forEach(b=>b.onclick=()=>{if(!shot(b.dataset.t)){pendType=b.dataset.t;$('fCam').click()}});
-async function fromFile(f,cam,type){
-  try{const b=await createImageBitmap(f),s=Math.min(1,2200/Math.max(b.width,b.height)),c=document.createElement('canvas');
-    c.width=Math.round(b.width*s);c.height=Math.round(b.height*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
-    addRec(c,'photo',cam?Date.now():(f.lastModified||Date.now()),type)}catch(e){$('last').textContent='Could not open that photo'}
-}
-$('fCam').onchange=e=>{[...e.target.files].forEach(f=>fromFile(f,true,pendType));e.target.value=''};
-$('fGal').onchange=e=>{[...e.target.files].forEach(f=>fromFile(f,false,$('impT').value));e.target.value=''};
-$('undo').onclick=()=>{const r=recs.filter(x=>x.own&&!x.deleted).sort((a,b)=>a.t-b.t).pop();
-  if(r){queue=queue.filter(j=>j.id!==r.id);if(r.status==='queued')r.status='done';r.deleted=1;touch(r);counts();refreshLog();$('last').textContent='Removed last '+r.type}};
-/* ---- UI ---- */
-function counts(){
-  const L=live();$('cIn').textContent=L.filter(r=>r.side==='ENTRY').length;$('cOut').textContent=L.filter(r=>r.side==='EXIT').length;syncChip();
-  const sl=$('sideLbl');sl.textContent=cfg.gate?'Side '+cfg.gate:'Side not set';const sm=document.createElement('small');sm.textContent=cfg.gate?'Logging '+(side==='ENTRY'?'entries':'exits'):'Pick a side in Setup';sl.append(sm);
-  $('bIn').className=side==='ENTRY'?'on':'';$('bOut').className=side==='EXIT'?'on':'';
-  const q=recs.filter(r=>r.status==='queued'||r.status==='reading').length;$('qn').textContent=q?q+' reading…':'';
-}
-$('bIn').onclick=()=>{side='ENTRY';counts()};$('bOut').onclick=()=>{side='EXIT';counts()};
-function setView(v){view=v;$('vCam').hidden=v!=='cam';$('vLog').hidden=v!=='log';$('vSet').hidden=v!=='set';
-  $('tCam').className=v==='cam'?'on':'';$('tLog').className=v==='log'?'on':'';$('tSet').className=v==='set'?'on':'';
-  if(v==='log'){summary();list()}else if(v==='set'){$('url').value=cfg.url;setupInfo()}else fit()}
-$('tCam').onclick=()=>setView('cam');$('tLog').onclick=()=>setView('log');$('tSet').onclick=()=>setView('set');
-$('lIn').onclick=()=>{lside='ENTRY';shown=100;list()};$('lOut').onclick=()=>{lside='EXIT';shown=100;list()};
-function summary(){
-  const L=live(),f=s=>TYPES.map(t=>t+' '+L.filter(r=>r.side===s&&r.type===t).length).join(' · ');
-  $('sum').textContent='';[['Entry',f('ENTRY')],['Exit',f('EXIT')]].forEach(([a,b])=>{const d=document.createElement('div');d.textContent=a+': '+b;$('sum').append(d)});
-}
-let onlyChk=false,shown=100;
-const needsCheck=r=>!r.plate||r.lc||!PLATE.test(r.plate);
-$('q').oninput=()=>{shown=100;list()};$('chk').onclick=()=>{onlyChk=!onlyChk;shown=100;list()};$('more').onclick=()=>{shown+=100;list()};
-function list(){
-  $('lIn').style.borderColor=lside==='ENTRY'?'var(--in)':'';$('lOut').style.borderColor=lside==='EXIT'?'var(--out)':'';
-  const L=$('list');L.textContent='';const q=norm($('q').value),side_=live().filter(r=>r.side===lside),nc=side_.filter(needsCheck).length;
-  $('chk').textContent='Needs check'+(nc?' ('+nc+')':'');$('chk').className='sec'+(onlyChk?' on':'');
-  const rows=side_.filter(r=>(!onlyChk||needsCheck(r))&&(!q||(r.plate||'').includes(q)||sim(r.plate||'',q)>=.75)).sort((a,b)=>b.t-a.t);
-  $('more').hidden=rows.length<=shown;$('more').textContent='Show more ('+(rows.length-shown)+' older)';
-  if(!rows.length){const e=document.createElement('div');e.className='t';e.style.padding='10px 0';e.textContent=onlyChk?'Nothing to check on this side.':q?'No plate matches '+q+'.':'No vehicles logged on this side yet.';L.append(e)}
-  rows.slice(0,shown).forEach(r=>{
+$('undo').onclick=()=>{const mp=myPost(),r=live().filter(x=>x.own&&postOf(x)===mp).sort((a,b)=>a.t-b.t).pop();
+  if(!r)return hint('Nothing to undo.');r.deleted=1;touch(r);buzz(30);hint('Removed '+digitsOf(r.plate)+' '+r.type+'.');showTypes();recent();counts()};
+function recent(){
+  const R=$('recent'),mp=myPost();R.textContent='';
+  live().filter(r=>postOf(r)===mp).sort((a,b)=>b.t-a.t).slice(0,5).forEach(r=>{
     const row=document.createElement('div');row.className='row';
-    const im=r.thumb?Object.assign(document.createElement('img'),{src:r.thumb}):Object.assign(document.createElement('div'),{className:'ph'});
-    const mid=document.createElement('div'),t=document.createElement('div');t.className='t';t.textContent=fmt(r.t).slice(11)+(r.gate?' · Side '+r.gate:'')+(r.own?' · '+r.status:' · other phone')+(r.dirty&&cfg.url?' · unsent':'');
-    const p=document.createElement('input');p.className='plate';p.value=r.plate;p.placeholder=r.hint?('? '+r.hint):'type plate';
-    if(r.plate)p.style.color=PLATE.test(r.plate)&&!r.lc?'var(--ink)':'var(--warn)';
-    p.onchange=()=>{r.plate=norm(p.value);r.src='m';r.lc=0;touch(r);list()};
+    const b=document.createElement('b');b.textContent=digitsOf(r.plate)||'—';
+    const t=document.createElement('span');t.className='t';t.textContent=r.type+' · '+hm(r.t);
+    const x=document.createElement('button');x.className='x';x.textContent='✕';x.setAttribute('aria-label','Delete '+digitsOf(r.plate));
+    x.onclick=()=>{r.deleted=1;touch(r);showTypes();recent();counts();hint('Removed '+digitsOf(r.plate)+' '+r.type+'.')};
+    row.append(b,t,x);R.append(row)});
+}
+function counts(){const mp=myPost();$('cnt').textContent=mp?live().filter(r=>postOf(r)===mp&&today(r)).length+' today at this post':'';syncChip()}
+
+/* ---- records screen ---- */
+function summary(){
+  const L=live(),S=$('sum');S.textContent='';const tb=document.createElement('table'),h=tb.insertRow();
+  ['Post',...TYPES,'Total'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
+  for(const p of Object.keys(POSTS)){const tr=tb.insertRow(),P=L.filter(r=>postOf(r)===p);tr.insertCell().textContent=POSTS[p];
+    TYPES.forEach(t=>tr.insertCell().textContent=P.filter(r=>r.type===t).length);const c=tr.insertCell();c.textContent=P.length;c.style.fontWeight='700'}
+  S.append(tb);
+}
+document.querySelectorAll('#lseg button').forEach(b=>b.onclick=()=>{lseg=b.dataset.s;shown=100;list()});
+$('q').oninput=()=>{shown=100;list()};$('more').onclick=()=>{shown+=100;list()};
+function list(){
+  if(!lseg)lseg=myPost()||'A-ENTRY';
+  document.querySelectorAll('#lseg button').forEach(b=>b.className=b.dataset.s===lseg?'on':'');
+  const q=$('q').value.replace(/\D/g,''),L=$('list');L.textContent='';
+  const rows=live().filter(r=>postOf(r)===lseg&&(!q||digitsOf(r.plate).includes(q))).sort((a,b)=>b.t-a.t);
+  $('more').hidden=rows.length<=shown;$('more').textContent='Show more ('+(rows.length-shown)+' older)';
+  if(!rows.length){const e=document.createElement('div');e.className='t';e.style.padding='10px 0';e.textContent=q?'No number matches '+q+'.':'No vehicles at this post yet.';L.append(e)}
+  rows.slice(0,shown).forEach(r=>{
+    const row=document.createElement('div');row.className='lrow';
+    const t=document.createElement('div');t.className='t';t.textContent=hm(r.t);
+    const n=document.createElement('input');n.className='num';n.inputMode='numeric';n.maxLength=4;n.value=digitsOf(r.plate);
+    n.onchange=()=>{const v=n.value.replace(/\D/g,'').slice(0,4);if(!v){n.value=digitsOf(r.plate);return}r.plate=v;touch(r);n.value=v};
     const ty=document.createElement('select');TYPES.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.selected=o===r.type;ty.append(e)});
     ty.onchange=()=>{r.type=ty.value;touch(r);summary()};
-    mid.append(t,p,ty);
-    const x=document.createElement('button');x.className='x';x.textContent='✕';x.onclick=()=>{queue=queue.filter(j=>j.id!==r.id);if(r.status==='queued')r.status='done';r.deleted=1;touch(r);counts();summary();list()};
-    row.append(im,mid,x);L.append(row);
-  });
+    const x=document.createElement('button');x.className='x';x.textContent='✕';x.onclick=()=>{r.deleted=1;touch(r);summary();list();counts()};
+    row.append(t,n,ty,x);L.append(row)});
 }
-/* ---- matching & export ---- */
-function dedupe(sd){
-  const a=live().filter(r=>r.side===sd).sort((x,y)=>x.t-y.t),out=[];
-  for(const r of a){const o=r.plate&&out.slice().reverse().find(o=>o.plate&&r.t-o.t2<=120000&&sim(o.plate,r.plate)>=.9);if(o){o.t2=r.t;o.n++}else out.push({...r,t2:r.t,n:1})}
-  return out;
+function refreshRec(){if(view==='rec'){summary();if(!$('list').contains(document.activeElement))list()}if(view==='count'){showTypes();recent()}}
+
+/* ---- matching: Side A entries with Side A exits, Side B with Side B ---- */
+function digitDiff(a,b){                 // 0 = same, 1 = one digit wrong, 2 = two neighbours swapped, -1 = too different
+  if(a===b)return 0;if(a.length!==4||b.length!==4)return -1;
+  let d=[];for(let i=0;i<4;i++)if(a[i]!==b[i])d.push(i);
+  if(d.length===1)return 1;
+  if(d.length===2&&d[1]===d[0]+1&&a[d[0]]===b[d[1]]&&a[d[1]]===b[d[0]])return 2;
+  return -1;
 }
-function saveBlob(name,data){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/octet-stream'}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
+const KIND={0:'Exact',1:'Fuzzy – one digit differs',2:'Fuzzy – two digits swapped'};
+function matchSide(g,mn,mx,fuzzy){
+  const L=live(),E=L.filter(r=>r.gate===g&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===g&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
+  const used=new Set(),pairs=[],xm=new Map();
+  const pass=(allow,limit)=>{for(const x of X){if(xm.has(x))continue;let best=null;
+    for(const e of E){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<mn||m>limit)continue;
+      const dd=digitDiff(digitsOf(e.plate),digitsOf(x.plate));if(dd<0||!allow(dd))continue;
+      const sc=dd*10+(e.type===x.type?0:5)-m/1000;   /* ties: earliest entry first (first in, first out) */if(!best||sc<best.sc)best={e,dd,m,sc}}
+    if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:best.dd,m:best.m})}}};
+  pass(d=>d===0,mx);                          // exact numbers first, so a typo never takes another vehicle's match
+  if(fuzzy)pass(d=>d>0,mx);
+  const T=pairs.filter(p=>p.m<=mx).sort((a,b)=>a.e.t-b.e.t);
+  const lsUsed=new Set(),LS=[];               // same number but outside the time window: long stay / locals
+  for(const x of X){if(xm.has(x))continue;const e=E.filter(e=>!used.has(e)&&!lsUsed.has(e)&&e.t<x.t&&digitsOf(e.plate)===digitsOf(x.plate)).pop();
+    if(e){lsUsed.add(e);LS.push({e,x,dd:0,m:(x.t-e.t)/60000});xm.set(x,null)}}
+  return{E,X,T,LS,eOnly:E.filter(e=>!used.has(e)&&!lsUsed.has(e)),xOnly:X.filter(x=>!xm.has(x)),em:new Map([...LS.map(p=>[p.e,{...p,ls:1}]),...T.map(p=>[p.e,p])]),xmap:new Map([...LS.map(p=>[p.x,{...p,ls:1}]),...T.map(p=>[p.x,p])])};
+}
+function saveBlob(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:type||'application/octet-stream'}));a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},3000)}
+const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
 $('go').onclick=async()=>{
-  if(!window.XLSX){$('res').textContent='Preparing Excel…';try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}}
-  const mx=+$('maxm').value,mn=+$('minm').value,en=dedupe('ENTRY'),ex=dedupe('EXIT'),used=new Set(),T=[],LS=[],mE=new Set();
-  for(const e of en){
-    if(!e.plate)continue;let best=null,bs=0;
-    for(const x of ex){if(used.has(x)||!x.plate||x.t<e.t)continue;const s=sim(e.plate,x.plate);if(s>=.85&&s>bs){best=x;bs=s}}
-    if(best){used.add(best);mE.add(e);const m=+((best.t-e.t2)/60000).toFixed(2);
-      (m>=mn&&m<=mx?T:LS).push({'Entry plate':e.plate,'Exit plate':best.plate,'Match %':Math.round(bs*100),'Vehicle type':e.type,'Exit vehicle type':best.type,'Entry time':fmt(e.t),'Exit time':fmt(best.t),'Minutes inside':m})}
-  }
-  const eo=en.filter(e=>e.plate&&!mE.has(e)),xo=ex.filter(x=>x.plate&&!used.has(x));
-  const rowOf=r=>({Side:r.side,Plate:r.plate,'Vehicle type':r.type,Time:fmt(r.t),'Photos merged':r.n});
-  const un=[...en,...ex].filter(r=>!r.plate).map(rowOf);
-  const R=$('res');R.textContent='';
-  const sm=document.createElement('div');sm.style.fontWeight='700';
-  sm.textContent='Transit: '+T.length+' · Long stay/locals: '+LS.length+' · Entry only: '+eo.length+' · Exit only: '+xo.length+' · Unreadable: '+un.length;R.append(sm);
-  if(T.length){const w=document.createElement('div');w.className='scroll';const tb=document.createElement('table'),hr=tb.insertRow();
-    Object.keys(T[0]).forEach(k=>{const th=document.createElement('th');th.textContent=k;hr.append(th)});
-    T.forEach(r=>{const tr=tb.insertRow();Object.values(r).forEach(v=>{tr.insertCell().textContent=v})});w.append(tb);R.append(w)}
-  const sheets={Summary:[{Item:'Entry vehicles',Value:en.length},{Item:'Exit vehicles',Value:ex.length},{Item:'Transit in window',Value:T.length},...TYPES.map(t=>({Item:'  Transit – '+t,Value:T.filter(r=>r['Vehicle type']===t).length})),{Item:'Long stay / locals',Value:LS.length},{Item:'Entry only',Value:eo.length},{Item:'Exit only',Value:xo.length},{Item:'Unreadable plates',Value:un.length},{Item:'Window (min)',Value:mn+'-'+mx}],
-    Transit_in_window:T,Long_stay_locals:LS,Entry_only:eo.map(rowOf),Exit_only:xo.map(rowOf),Unreadable_plates:un,All_entry:en.map(rowOf),All_exit:ex.map(rowOf)};
+  const R=$('res'),mx=+$('maxm').value||15,mn=+$('minm').value||0,fz=$('fuzzy').checked;R.textContent='Matching…';
+  if(cfg.url)try{await sync()}catch(e){}
+  const S={A:matchSide('A',mn,mx,fz),B:matchSide('B',mn,mx,fz)};
+  R.textContent='';const tb=document.createElement('table'),h=tb.insertRow();
+  ['','Side A','Side B'].forEach(k=>{const th=document.createElement('th');th.textContent=k;h.append(th)});
+  const add=(lab,f)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;['A','B'].forEach(g=>tr.insertCell().textContent=f(S[g]))};
+  add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);
+  add('Transit – exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('Transit – fuzzy',s=>s.T.filter(p=>p.dd>0).length);
+  add('Transit total',s=>s.T.length);add('Long stay / locals',s=>s.LS.length);add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
+  R.append(tb);
+  // ---- Excel ----
+  const tmin=m=>Math.round(m*10)/10;
+  const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
+    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Matched':p?(p.ls?'Long stay (outside window)':KIND[p.dd]):'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
+      [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):'','Minutes':p?tmin(p.m):''}});
+  const pairRows=(g,list)=>list.map(p=>({'Side':g,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
+    'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t),'Minutes':tmin(p.m)}));
+  const onlyRows=(g,s)=>[...s.eOnly.map(r=>({'Side':g,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type})),
+    ...s.xOnly.map(r=>({'Side':g,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type}))].sort((a,b)=>a.Time<b.Time?-1:1);
+  const summ=[];const sr=(k,f)=>summ.push({'':k,'Side A':f(S.A),'Side B':f(S.B),'Total':f(S.A)+f(S.B)});
+  sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
+  sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
+  sr('Transit – exact match',s=>s.T.filter(p=>p.dd===0).length);
+  sr('Transit – fuzzy match',s=>s.T.filter(p=>p.dd>0).length);sr('Transit total',s=>s.T.length);
+  TYPES.forEach(t=>sr('   Transit – '+t,s=>s.T.filter(p=>p.e.type===t).length));
+  sr('Long stay / locals (same number, outside window)',s=>s.LS.length);sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
+  summ.push({},{'':'Transit window','Side A':mn+'–'+mx+' min'},{'':'Fuzzy matching','Side A':fz?'On (one digit wrong or two swapped)':'Off'},{'':'Created','Side A':fmt(Date.now())});
+  const sheets={'Summary':summ,'A Entry':stationRows(S.A,S.A.E,true),'A Exit':stationRows(S.A,S.A.X,false),'B Entry':stationRows(S.B,S.B.E,true),'B Exit':stationRows(S.B,S.B.X,false),
+    'A Matched':pairRows('A',S.A.T),'B Matched':pairRows('B',S.B.T),'Long stay':[...pairRows('A',S.A.LS),...pairRows('B',S.B.LS)],'A Unmatched':onlyRows('A',S.A),'B Unmatched':onlyRows('B',S.B)};
+  const msg=(t,c)=>{const d=document.createElement('div');d.className=c;d.style.marginTop='8px';d.textContent=t;R.append(d)};
+  if(!window.XLSX)try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}
   try{
-    if(window.XLSX){const wb=XLSX.utils.book_new();for(const [n,d] of Object.entries(sheets))XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d.length?d:[{}]),n);saveBlob('toll_audit.xlsx',XLSX.write(wb,{type:'array',bookType:'xlsx'}))}
-    else{const rows=[...T,...LS],h=rows[0]?Object.keys(rows[0]):['none'];saveBlob('toll_audit.csv',[h.join(','),...rows.map(r=>h.map(k=>'"'+r[k]+'"').join(','))].join('\n'))}
-    const ok=document.createElement('div');ok.className='ok';ok.textContent='Downloaded – check your Downloads folder.';R.append(ok);
-  }catch(e){const er=document.createElement('div');er.className='err';er.textContent='Could not create the file.';R.append(er)}
+    const stamp=fmt(Date.now()).replace(/[: ]/g,'-').slice(0,16);
+    if(window.XLSX){const wb=XLSX.utils.book_new();
+      for(const [n,d] of Object.entries(sheets)){const ws=XLSX.utils.json_to_sheet(d.length?d:[{'':'(none)'}]);
+        const keys=Object.keys(d[0]||{'':1});ws['!cols']=keys.map(k=>({wch:Math.max(10,k.length+2,...d.slice(0,200).map(r=>String(r[k]??'').length+1))}));
+        XLSX.utils.book_append_sheet(wb,ws,n)}
+      saveBlob('toll_detour_'+stamp+'.xlsx',XLSX.write(wb,{type:'array',bookType:'xlsx'}))}
+    else{const rows=[...sheets['A Matched'],...sheets['B Matched']],h=rows[0]?Object.keys(rows[0]):['none'];
+      saveBlob('toll_detour_matched_'+stamp+'.csv',[h.join(','),...rows.map(r=>h.map(k=>'"'+r[k]+'"').join(','))].join('\n'),'text/csv');
+      msg('Excel tool could not load (no internet?) – saved the matched list as CSV instead.','err')}
+    msg('Downloaded – check your Downloads folder.','ok');
+  }catch(e){msg('Could not create the file.','err')}
 };
-$('clear').onclick=()=>{const n=recs.filter(r=>r.dirty).length;
-  if(!clearArm){clearArm=true;$('clear').textContent=cfg.url&&n?'Tap again – '+n+' not yet sent will be lost':'Tap again to delete everything on this phone';
-    setTimeout(()=>{clearArm=false;$('clear').textContent='Clear this phone'},4000);return}
-  recs=[];queue=[];if(cfg.url){cfg.url='';cfg.lastSrv=0;saveCfg()}   // disconnect, or the cloud copy would download again
-  save();counts();summary();list();clearArm=false;$('clear').textContent='Clear this phone';
-  $('last').textContent='Phone cleared. The Google Sheet still has its copy; set up a new sheet for a new audit.'};
+
+/* ---- views ---- */
+function setView(v){view=v;$('vCount').hidden=v!=='count';$('vRec').hidden=v!=='rec';$('vSet').hidden=v!=='set';
+  $('tCount').className=v==='count'?'on':'';$('tRec').className=v==='rec'?'on':'';$('tSet').className=v==='set'?'on':'';
+  if(v==='rec'){summary();list()}else if(v==='set'){$('url').value=cfg.url;setupInfo()}else{showTypes();recent()}}
+$('tCount').onclick=()=>setView('count');$('tRec').onclick=()=>setView('rec');$('tSet').onclick=()=>setView('set');
 
 /* ---- cloud sync with the Google Sheet (Code.gs) ---- */
 let syncing=false,syncErr='',lastOk=0,skew=0,kickT=null;
 function kick(ms){if(!cfg.url)return syncChip();clearTimeout(kickT);kickT=setTimeout(sync,ms==null?1500:ms)}
-const wire=r=>({id:r.id,gate:r.gate||cfg.gate||'',dir:r.side,type:r.type,plate:r.plate||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,
-  thumb:(r.thumb||'').length<45000?(r.thumb||''):''});
-const unsent=()=>recs.filter(r=>r.dirty);
+const wire=r=>({id:r.id,gate:r.gate||'',dir:r.side,type:r.type,plate:r.plate||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,thumb:''});
 async function api(body,since){
-  const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),body&&body.action==='ocr'?45000:30000);
+  const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),30000);
   try{const res=await fetch(body?u:u+(u.includes('?')?'&':'?')+'since='+since,body?{method:'POST',body:JSON.stringify(body),signal:ctl.signal}:{signal:ctl.signal});
     const j=await res.json();if(!j.ok)throw new Error(j.error||'server');return j}finally{clearTimeout(tm)}
 }
@@ -591,8 +366,8 @@ function merge(rs){
   for(const x of rs){
     if(x.srv>cfg.lastSrv)cfg.lastSrv=x.srv;
     const l=by.get(x.id),f={gate:x.gate,side:x.dir,type:x.type,plate:x.plate,t:x.t,updated:x.updated,deleted:x.deleted?1:0};
-    if(l){if(x.updated>l.updated){Object.assign(l,f,{dirty:0});if(x.thumb)l.thumb=x.thumb;ch++}}
-    else if(!x.deleted){const r={id:x.id,...f,hint:'',status:'done',thumb:x.thumb||'',own:false,dirty:0};recs.push(r);by.set(r.id,r);ch++}
+    if(l){if(x.updated>l.updated){Object.assign(l,f,{dirty:0});ch++}}
+    else if(!x.deleted){const r={id:x.id,...f,own:false,dirty:0};recs.push(r);by.set(r.id,r);ch++}
   }
   if(ch)recs.sort((a,b)=>a.t-b.t);return ch;
 }
@@ -600,23 +375,23 @@ async function sync(){
   if(!cfg.url||syncing)return syncChip();
   syncing=true;syncChip();
   try{
-    const out=unsent();
-    for(let i=0;i<out.length;i+=40){
-      const part=out.slice(i,i+40),sent=part.map(r=>r.updated);
+    const out=recs.filter(r=>r.dirty);
+    for(let i=0;i<out.length;i+=50){
+      const part=out.slice(i,i+50),sent=part.map(r=>r.updated);
       await api({records:part.map(wire)});
       part.forEach((r,k)=>{if(r.updated===sent[k])r.dirty=0});save();
     }
     const t0=Date.now(),j=await api(null,Math.max(0,cfg.lastSrv-120000));   // 2-min overlap so nothing written mid-read is missed
-    skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet&&j.sheet!==cfg.sheet){cfg.sheet=j.sheet;saveCfg()}
+    skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet&&j.sheet!==cfg.sheet){cfg.sheet=j.sheet}
     const ch=merge(j.records||[]);
     lastOk=Date.now();syncErr='';save();saveCfg();
-    if(ch){counts();refreshLog()}
+    if(ch){counts();refreshRec()}
   }catch(e){syncErr=navigator.onLine===false?'No internet – will retry automatically.':'Could not reach the sheet ('+(e.name==='AbortError'?'timed out':e.message||'error')+').'}
   syncing=false;syncChip();if(view==='set')setupInfo();
 }
-function linkBar(){const l=$('link');if(l){l.hidden=!!(cfg.url&&cfg.gate);l.textContent=cfg.url?'Pick Side A or Side B – tap here':'Link Google Sheet first – tap here'}}
-function syncChip(){linkBar();
-  const e=$('sync');if(!e)return;const n=recs.filter(r=>r.dirty).length;
+function syncChip(){
+  const l=$('link');l.hidden=!!cfg.url;
+  const e=$('sync'),n=recs.filter(r=>r.dirty).length;
   if(!cfg.url){e.textContent='Not linked';e.className='chip bad'}
   else if(syncing){e.textContent='Syncing…';e.className='chip wait'}
   else if(syncErr){e.textContent=n?n+' unsent':'Sync failed';e.className='chip bad'}
@@ -625,49 +400,54 @@ function syncChip(){linkBar();
   else{e.textContent=lastOk?'Synced':'Linking…';e.className='chip '+(lastOk?'ok':'wait')}
 }
 function setupInfo(){
-  $('gA').className='sec'+(cfg.gate==='A'?' on':'');$('gB').className='sec'+(cfg.gate==='B'?' on':'');
+  document.querySelectorAll('#posts button').forEach(b=>b.className='sec'+(b.dataset.p===myPost()?' on':''));
+  $('vib').checked=cfg.vib!==false;
   const L=live(),I=$('sInfo');I.textContent='';
   const line=(txt,cls)=>{const d=document.createElement('div');d.textContent=txt;if(cls)d.className=cls;I.append(d)};
-  line('This phone: '+(cfg.gate?'Side '+cfg.gate:'side not chosen'),cfg.gate?'':'err');
+  line('This phone: '+(myPost()?POSTS[myPost()]:'post not chosen'),myPost()?'':'err');
   line('Google Sheet: '+(cfg.url?'linked':'not linked yet'),cfg.url?'':'err');
   if(cfg.url){
-    line('Last sync: '+(lastOk?fmt(lastOk).slice(11):'not yet'));
+    line('Last sync: '+(lastOk?hm(lastOk):'not yet'));
     line('Waiting to send: '+recs.filter(r=>r.dirty).length);
     if(syncErr)line(syncErr,'err');
-    if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching times will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
+    if(lastOk)line(Math.abs(skew)>60000?'Clock is '+Math.round(Math.abs(skew)/1000)+' s '+(skew>0?'ahead':'behind')+' – turn on automatic date & time, or matching will be wrong.':'Clock OK ('+Math.round(skew/1000)+' s)',Math.abs(skew)>60000?'err':'ok');
+    if(cfg.sheet){const a=document.createElement('a');a.href=cfg.sheet;a.target='_blank';a.rel='noopener';a.className='sec';a.style.cssText='display:block;text-align:center;margin:8px 0;font-weight:700;text-decoration:none;color:var(--accent)';a.textContent='Open the Google Sheet';I.append(a)}
   }
-  if(cfg.url)line('Google plate reader: '+(gOk?'on ✓':gOk===false?'OFF – add Drive API service in Apps Script':'checking…'),gOk?'ok':gOk===false?'err':'');
-  if(cfg.url&&cfg.sheet){const a=document.createElement('a');a.href=cfg.sheet;a.target='_blank';a.rel='noopener';a.className='sec';a.style.cssText='display:block;text-align:center;margin:8px 0;font-weight:700;text-decoration:none;color:var(--accent)';a.textContent='Open the Google Sheet';I.append(a)}
-  line('Records: Side A '+L.filter(r=>r.gate==='A').length+' · Side B '+L.filter(r=>r.gate==='B').length+(L.some(r=>!r.gate)?' · no side '+L.filter(r=>!r.gate).length:''));
+  line('Records on this phone: '+Object.keys(POSTS).map(p=>p.replace('-ENTRY',' in').replace('-EXIT',' out')+' '+L.filter(r=>postOf(r)===p).length).join(' · '));
 }
-function setGate(g){cfg.gate=g;saveCfg();$('urlRes').textContent=$('urlRes').textContent.replace(' Now pick Side A or Side B below.','');side=g==='A'?'ENTRY':'EXIT';
-  recs.forEach(r=>{if(r.own&&!r.gate){r.gate=g;r.updated=Date.now();r.dirty=1}});save();counts();setupInfo();kick(300)}
-$('gA').onclick=()=>setGate('A');$('gB').onclick=()=>setGate('B');
-$('syncNow').onclick=()=>{if(cfg.url)sync();else{$('urlRes').className='err';$('urlRes').textContent='Paste the Web app URL first.'}};
+document.querySelectorAll('#posts button').forEach(b=>b.onclick=()=>{const [g,d]=b.dataset.p.split('-');cfg.gate=g;cfg.dir=d;saveCfg();lseg='';header();setupInfo();showTypes();recent();counts();buzz(20)});
+$('vib').onchange=e=>{cfg.vib=e.target.checked;saveCfg()};
+$('syncNow').onclick=()=>{if(cfg.url)sync();else{$('urlRes').className='err';$('urlRes').textContent='Paste the web app link first.'}};
 $('link').onclick=()=>setView('set');
 $('sync').onclick=()=>{if(cfg.url&&!syncErr)sync();else setView('set')};
 $('saveUrl').onclick=async()=>{
   const u=$('url').value.trim(),R=$('urlRes');
-  if(!u){R.className='err';R.textContent='Paste the Web app URL first.';return}
+  if(!u){R.className='err';R.textContent='Paste the web app link first.';return}
   if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){R.className='err';R.textContent='That doesn\'t look right. It should start with https://script.google.com/ and end with /exec.';return}
   R.className='t';R.textContent='Testing…';
   const prev=cfg.url;cfg.url=u;
-  try{const j0=await api(null,Date.now());if(j0.sheet){cfg.sheet=j0.sheet}
-    try{const c=await api({action:'ocrcheck'});gOk=c.drive?true:false}catch(e){gOk=false}ocrChip();
+  try{const j0=await api(null,Date.now());if(j0.sheet)cfg.sheet=j0.sheet;
     if(prev!==u){cfg.lastSrv=0;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
-    saveCfg();R.className='ok';R.textContent='Connected ✓'+(gOk?' Google plate reader ✓':' – Google plate reader is OFF: add the Drive API service in Apps Script (see SETUP).')+(cfg.gate?'':' Now pick Side A or Side B below.');sync()}
-  catch(e){cfg.url=prev;R.className='err';R.textContent='Could not reach it. Check the URL, that the deployment says "Who has access: Anyone", and that you have internet.'}
+    saveCfg();R.className='ok';R.textContent='Connected ✓'+(myPost()?'':' Now choose this phone\'s post above.');sync()}
+  catch(e){cfg.url=prev;R.className='err';R.textContent='Could not reach it. Open the link in Chrome: it should show {"ok":true…}. If not, check "Who has access: Anyone" and deploy a new version.'}
   setupInfo();
 };
+$('clear').onclick=()=>{const n=recs.filter(r=>r.dirty).length;
+  if(!clearArm){clearArm=true;$('clear').textContent=cfg.url&&n?'Tap again – '+n+' not yet sent will be lost':'Tap again to delete everything on this phone';
+    setTimeout(()=>{clearArm=false;$('clear').textContent='Clear this phone'},4000);return}
+  recs=[];if(cfg.url){cfg.url='';cfg.lastSrv=0;saveCfg()}
+  save();counts();showTypes();recent();setupInfo();clearArm=false;$('clear').textContent='Clear this phone';
+  $('urlRes').className='t';$('urlRes').textContent='Phone cleared and unlinked. The Google Sheet keeps its copy.'};
 setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
 addEventListener('online',()=>kick(500));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)kick(300)});
 
-startCam();loadFast();counts();
-loadRecs().then(()=>{counts();refreshLog();liveLoop();if(cfg.url){kick(500);api({action:'ocrcheck'}).then(c=>{gOk=!!c.drive;ocrChip()}).catch(()=>{})}});
-try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}   // ask the phone not to clear our data
+/* ---- start ---- */
+header();showTypes();showDigits();counts();
+loadRecs().then(()=>{showTypes();recent();counts();refreshRec();if(cfg.url)kick(300)});
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
-/* keep the screen on while the app is open (camera stops when the phone sleeps) */
 let wl=null;async function keepAwake(){try{if('wakeLock' in navigator&&!document.hidden&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}}catch(e){}}
 document.addEventListener('visibilitychange',keepAwake);addEventListener('pointerdown',keepAwake,{once:true});keepAwake();
+if(!myPost())setView('set');
 </script></body></html>

@@ -1,39 +1,48 @@
-ONE-TIME CLOUD SETUP (do this once, on a computer or one phone, with your Google account)
+TOLL DETOUR COUNTER – SETUP (one time)
 
-1. Google Drive > New > Google Sheets. Name it "Toll Audit Live".
-2. In the sheet: Extensions > Apps Script. Delete everything there, paste the contents of Code.gs, click Save.
-   Then turn on Google's plate reader: left side "Services" (+) > "Drive API" > Add.
-3. Click Deploy > New deployment > gear icon > Web app.
-     Execute as:        Me
-     Who has access:    Anyone
-   Click Deploy. When asked, Authorize access (Advanced > "Go to project (unsafe)" > Allow - this is your own script).
-4. Copy the "Web app URL" (ends with /exec).
-5. On BOTH phones: open https://avinashpkf-arch.github.io/toll-logger/ in Chrome (it opens on the live camera). Go to the Setup tab,
-   paste the URL > Save & test. Then on one phone tap "Side A", on the other tap "Side B".
-   Side A starts on ENTRY, Side B on EXIT (you can still switch at the top).
+App link (open in Chrome on all four phones):
+   https://avinashpkf-arch.github.io/toll-logger/
+Chrome menu (⋮) > Install app / Add to Home screen, so it opens like an app.
 
-ALREADY DEPLOYED AN OLDER Code.gs?
-   Paste the new Code.gs, Save. Add Services (+) > Drive API if it isn't listed. Then Deploy > Manage deployments > pencil icon > Version: "New version" > Deploy.
-   This keeps the same URL. ("New deployment" would give you a new URL.)
-   If Google asks to authorize again (Drive and Docs access for the plate reader), allow it.
+1. GOOGLE SHEET (once, on a computer)
+   a. Open https://raw.githubusercontent.com/avinashpkf-arch/toll-logger/main/Code.gs  > Ctrl+A > Ctrl+C
+   b. Open your Google Sheet > Extensions > Apps Script. Ctrl+A, Delete (the editor must be EMPTY,
+      no "function myFunction"), Ctrl+V, Save.
+      (No sheet? The script creates "Toll Audit Live" in your Drive by itself.)
+   c. Deploy > New deployment > gear > Web app.  Execute as: Me.  Who has access: Anyone.  Deploy.
+      Authorize access > your account > Advanced > Go to … (unsafe) > Allow.
+   d. Copy the Web app URL (ends with /exec). Open it in Chrome: it must show {"ok":true,...}
+   Already deployed? After pasting new code: Deploy > Manage deployments > pencil > New version > Deploy
+   (keeps the same link).
 
-Using it
-- Zoom: tap 2x / 3x / 5x (or pinch) until the number plate fills most of the yellow box. At 3 m, 2x-3x is usually right.
-  Bigger plate in the box = far better reading. 🔦 turns on the torch at night (on phones that support it).
-- Each tap takes 3 quick frames and keeps the sharpest. Hold steady for a moment after tapping.
-- The last vehicle's photo and plate show at the top-left of the camera. Green = valid plate, yellow = check it, "? not read" = fix in Log.
-- The "Google ✓" chip means plates are read by Google's text recognition (much more accurate). Photos are put in
-  your own Google Drive for a second and deleted straight away. If it shows "Reader" instead, add the Drive API service.
-- The top-right chip shows sync: "Synced ✓", "3 to send", "Sync ✗" (signal dropped - it retries every 10 seconds),
-  or "Clock off!" (phone time is more than a minute out - turn on automatic date & time, or exit times won't match).
-- Each phone sees both sides' vehicles. Plate corrections, type changes and deletions sync both ways.
-- "Match & download Excel" works on either phone once both have synced.
-- Every record also appears live in the "Log" tab of the Google Sheet.
-- The app needs internet: the Sheet is where both phones meet. Until it is linked, a red bar on the camera screen says so.
-- "Clear this phone" wipes this phone and disconnects it; the Sheet keeps its copy. For a new audit, make a new sheet.
+2. EACH OF THE FOUR PHONES
+   Setup tab:
+   - This phone's post: one phone each for Side A · Entry, Side A · Exit, Side B · Entry, Side B · Exit.
+   - Google Sheet: paste the same /exec link on all four > Save and test > "Connected ✓".
+   - Turn on automatic date & time on every phone (entry and exit times must line up).
+     The top chip says "Clock wrong" if a phone is more than a minute out.
+
+3. COUNTING (Count tab)
+   - Tap the vehicle type (Car, LCV, Truck, Bus, MAV). It stays selected for the next vehicles.
+   - Type the LAST 4 DIGITS of the number plate. It saves by itself on the 4th digit (phone buzzes twice).
+   - Fewer than 4 digits on the plate? Type them and press Save.
+   - ⌫ removes a digit; hold ⌫ to clear. "Undo last" removes the last saved vehicle.
+   - Same number twice within 2 minutes at the same post: it still saves but warns you, so you can Undo.
+   - The last 5 entries are listed below; ✕ deletes one. Corrections: Records tab, change the number or type.
+
+4. MATCH AND EXCEL (Records tab, on any phone once all four have synced)
+   - Set the transit window (default: exits within 15 minutes).
+   - "Also match likely typos" (on by default): matches numbers with one digit wrong or two digits swapped,
+     but only after exact matches are taken. These are marked "Fuzzy" in the Excel so you can check them.
+   - Match and download Excel. Sheets:
+       Summary          – per side: entries, exits, transit (exact / fuzzy / by type), long stay, unmatched
+       A Entry, A Exit, B Entry, B Exit – every vehicle at each post, with its match
+       A Matched, B Matched – transit pairs (entry, exit, minutes, match type, same vehicle type?)
+       Long stay        – same number but outside the window (locals / long stay)
+       A Unmatched, B Unmatched – entries with no exit and exits with no entry
+   - Side A entries are only matched with Side A exits, Side B with Side B.
 
 Notes
-- Anyone who has the URL can read and write the log. Share it only between you two, and delete the deployment
-  (Deploy > Manage deployments > Archive) when the audit is finished.
-- Plate numbers are personal data; keep the sheet private to the audit team.
-- The plate reader loads when the app opens; wait for "Reader ✓" before the first vehicle.
+- Anyone with the /exec link can read and write the log. Share it only with the team and archive the
+  deployment (Deploy > Manage deployments > Archive) when the audit is over.
+- "Clear this phone" wipes the phone and unlinks it. The Google Sheet keeps its copy.

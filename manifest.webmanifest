@@ -1,6 +1,6 @@
 {
-  "name": "Toll Detour Logger",
-  "short_name": "Toll Logger",
+  "name": "Toll Detour Counter",
+  "short_name": "Toll Counter",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
