@@ -409,12 +409,13 @@ function setView(v){view=v;$('vCount').hidden=v!=='count';$('vRec').hidden=v!=='
 $('tCount').onclick=()=>setView('count');$('tRec').onclick=()=>setView('rec');$('tSet').onclick=()=>setView('set');
 
 /* ---- cloud sync with the Google Sheet (Code.gs) ---- */
-let syncing=false,syncErr='',lastOk=0,skew=0,kickT=null;
+let syncing=false,syncErr='',lastOk=0,skew=0,kickT=null,probed='',probedAt=0;
 function kick(ms){if(!cfg.url)return syncChip();clearTimeout(kickT);kickT=setTimeout(sync,ms==null?1500:ms)}
 const wire=r=>({id:r.id,gate:r.gate||'',dir:r.side,type:r.type,plate:r.plate||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,thumb:''});
 async function api(body,since){
   const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),30000);
-  try{const res=await fetch(body?u:u+(u.includes('?')?'&':'?')+'since='+since,body?{method:'POST',body:JSON.stringify(body),signal:ctl.signal}:{signal:ctl.signal});
+  const q=typeof since==='string'?since:'since='+since;
+  try{const res=await fetch(body?u:u+(u.includes('?')?'&':'?')+q,body?{method:'POST',body:JSON.stringify(body),signal:ctl.signal}:{signal:ctl.signal});
     const j=await res.json();if(!j.ok)throw new Error(j.error||'server');return j}finally{clearTimeout(tm)}
 }
 function merge(rs){
@@ -431,15 +432,26 @@ async function sync(){
   if(!cfg.url||syncing)return syncChip();
   syncing=true;syncChip();
   try{
+    if(probed!==cfg.url||(cfg.layout!==2&&Date.now()-probedAt>120000)){   // which script version is installed? (at start, and every 2 min until it is the new one)
+      const j=await api(null,'probe=1&since='+Date.now());probed=cfg.url;probedAt=Date.now();
+      if(j.layout===2&&cfg.layout!==2){cfg.layout=2;cfg.from='0:2';recs.forEach(r=>r.dirty=1);save();saveCfg()}   // moved to the new script: send everything once
+      else if(!j.layout&&cfg.layout===2){cfg.layout=1;saveCfg()}}
     const out=recs.filter(r=>r.dirty);
     for(let i=0;i<out.length;i+=50){
       const part=out.slice(i,i+50),sent=part.map(r=>r.updated);
       await api({records:part.map(wire)});
       part.forEach((r,k)=>{if(r.updated===sent[k])r.dirty=0});save();
     }
-    const t0=Date.now(),j=await api(null,Math.max(0,cfg.lastSrv-120000));   // 2-min overlap so nothing written mid-read is missed
-    skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet&&j.sheet!==cfg.sheet){cfg.sheet=j.sheet}
-    const ch=merge(j.records||[]);
+    let ch=0;
+    if(cfg.layout===2){                     // new script: read new rows page by page from where this phone stopped
+      for(let pg=0;pg<40;pg++){const t0=Date.now(),j=await api(null,'from='+encodeURIComponent(cfg.from||'0:2'));
+        skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet)cfg.sheet=j.sheet;
+        ch+=merge(j.records||[]);if(j.next)cfg.from=j.next;saveCfg();if(!j.more)break}
+    }else{                                  // old script
+      const t0=Date.now(),j=await api(null,Math.max(0,cfg.lastSrv-120000));   // 2-min overlap so nothing written mid-read is missed
+      skew=Math.round((t0+Date.now())/2-j.now);if(j.sheet&&j.sheet!==cfg.sheet){cfg.sheet=j.sheet}
+      ch=merge(j.records||[]);
+    }
     lastOk=Date.now();syncErr='';save();saveCfg();
     if(ch){counts();refreshRec()}
   }catch(e){syncErr=navigator.onLine===false?'No internet – will retry automatically.':'Could not reach the sheet ('+(e.name==='AbortError'?'timed out':e.message||'error')+').'}
@@ -484,8 +496,8 @@ $('saveUrl').onclick=async()=>{
   if(!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)){R.className='err';R.textContent='That doesn\'t look right. It should start with https://script.google.com/ and end with /exec.';return}
   R.className='t';R.textContent='Testing…';
   const prev=cfg.url;cfg.url=u;
-  try{const j0=await api(null,Date.now());if(j0.sheet)cfg.sheet=j0.sheet;
-    if(prev!==u){cfg.lastSrv=0;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
+  try{const j0=await api(null,'probe=1&since='+Date.now());if(j0.sheet)cfg.sheet=j0.sheet;
+    if(prev!==u){cfg.lastSrv=0;cfg.from='0:2';cfg.layout=j0.layout===2?2:1;probed=u;recs.forEach(r=>r.dirty=1);save()}   // new sheet: send everything to it
     saveCfg();R.className='ok';R.textContent='Connected ✓'+(myPost()?'':' Now choose this phone\'s post above.');sync()}
   catch(e){cfg.url=prev;R.className='err';R.textContent='Could not reach it. Open the link in Chrome: it should show {"ok":true…}. If not, check "Who has access: Anyone" and deploy a new version.'}
   setupInfo();
@@ -493,7 +505,7 @@ $('saveUrl').onclick=async()=>{
 $('clear').onclick=()=>{const n=recs.filter(r=>r.dirty).length;
   if(!clearArm){clearArm=true;$('clear').textContent=cfg.url&&n?'Tap again – '+n+' not yet sent will be lost':'Tap again to delete everything on this phone';
     setTimeout(()=>{clearArm=false;$('clear').textContent='Clear this phone'},4000);return}
-  recs=[];if(cfg.url){cfg.url='';cfg.lastSrv=0;saveCfg()}
+  recs=[];if(cfg.url){cfg.url='';cfg.lastSrv=0;cfg.from='0:2';cfg.layout=0;probed='';saveCfg()}
   save();counts();showTypes();recent();setupInfo();clearArm=false;$('clear').textContent='Clear this phone';
   $('urlRes').className='t';$('urlRes').textContent='Phone cleared and unlinked. The Google Sheet keeps its copy.'};
 setInterval(()=>{if(!document.hidden&&cfg.url)sync()},10000);
