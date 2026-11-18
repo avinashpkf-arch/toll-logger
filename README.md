@@ -3,6 +3,8 @@
 Eight-phone manual counter for a toll detour audit (4 detours, entry and exit posts each). Open the app: https://avinashpkf-arch.github.io/toll-logger/
 
 - One phone per post: LHS Kaniyur, LHS LMW, RHS Kaniyur, RHS Rangaz – each Entry and Exit
+- Logins: one ID + PIN per post (one phone at a time, sees only its own post) and an Admin ID (all posts, Excel).
+  PINs are stored only as SHA-256 hashes in `index.html`; the PINs themselves are not in this repository
 - Guides tap the vehicle type and the last 4 digits of the number plate on a phone-style keypad (saves on the 4th digit)
 - All eight phones share one Google Sheet through a small Apps Script web app (append-only log, rows added as needed,
   ~900k rows per spreadsheet, then it starts a new spreadsheet automatically; phones read new rows page by page)
