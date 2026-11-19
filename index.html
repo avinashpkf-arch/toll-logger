@@ -53,6 +53,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .blocked::after{content:attr(data-msg);position:absolute;inset:-4px;background:rgba(242,245,243,.9);display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;padding:20px;border-radius:var(--r-lg)}
 
 /* recent */
+.remark{margin-top:10px}.remark label{display:block;font-weight:700;font-size:15px;margin-bottom:4px}.remark small{font-weight:400;color:var(--mute)}.remark div{display:flex;gap:8px}.remark input{flex:1;font:inherit;padding:12px 10px;border:2px solid var(--ink);border-radius:var(--r-sm);background:#fff;color:var(--ink);min-width:0}.remark button{padding:0 14px}.lrow .rm{grid-column:1/-1;font:inherit;padding:8px 10px;border:2px solid var(--line);border-radius:var(--r-sm);background:#fff;color:var(--ink);width:100%}.recent .row .rk{font-size:13px;color:var(--mute);font-style:italic}
 .recent{margin-top:10px}
 .recent .row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:15px}
 .recent .row b{font-size:19px;letter-spacing:1px;min-width:56px}
@@ -171,6 +172,7 @@ label.chk{font-size:17px}
   </div>
  </div>
  <div class="bar"><span id="cnt"></span><button id="undo">Undo last</button></div>
+ <div class="remark"><label for="rmk">Remarks <small>(optional, goes with the next vehicle)</small></label><div><input id="rmk" type="text" maxlength="60" placeholder="e.g. taxi, school bus, tractor" autocomplete="off"><button id="rmkx" class="sec" aria-label="Clear remarks">Clear</button></div></div>
  <div class="recent" id="recent"></div>
 </section>
 
@@ -235,7 +237,7 @@ const buzz=p=>{try{if(cfg.vib&&navigator.vibrate)navigator.vibrate(p)}catch(e){}
 
 /* ---- storage: IndexedDB (localStorage as fallback) ---- */
 let idb=null,saveT=null;const sigs=new Map();
-const sigOf=r=>[r.updated,r.plate,r.type,r.side,r.gate,r.deleted,r.dirty].join('|');
+const sigOf=r=>[r.updated,r.plate,r.remarks,r.type,r.side,r.gate,r.deleted,r.dirty].join('|');
 function idbOpen(){return new Promise((ok,no)=>{try{const q=indexedDB.open('tollLog',1);q.onupgradeneeded=()=>q.result.createObjectStore('recs',{keyPath:'id'});q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}})}
 async function loadRecs(){
   let got=[];
@@ -292,16 +294,17 @@ addEventListener('keydown',e=>{if(view!=='count'||e.target.tagName==='INPUT')ret
   if(/^\d$/.test(e.key))key(e.key);else if(e.key==='Backspace')key('del');else if(e.key==='Enter')key('ok')});
 function commit(){
   const now=Date.now(),d=entry,mp=myPost();
-  const r={id:now+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side:cfg.dir,t:now,type:cfg.type,plate:d,updated:now,deleted:0,own:true,dirty:1};
+  const r={id:now+'_'+Math.random().toString(36).slice(2,6),gate:cfg.gate,side:cfg.dir,t:now,type:cfg.type,plate:d,remarks:($('rmk').value||'').trim().slice(0,60),updated:now,deleted:0,own:true,dirty:1};
   const dup=live().filter(x=>postOf(x)===mp&&digitsOf(x.plate)===d&&x.type===r.type&&now-x.t<120000).pop();   // same number in another category is a different vehicle
   recs.push(r);undoStack.push(r.id);save();kick(800);
-  entry='';showDigits();buzz([25,40,25]);
+  entry='';$('rmk').value='';showDigits();buzz([25,40,25]);
   const D=$('display');D.classList.remove('saved');void D.offsetWidth;D.classList.add('saved');
   if(dup)hint('Saved '+d+' '+r.type+' – same number and type as '+Math.round((now-dup.t)/1000)+' s ago. Undo if it was entered twice.',true);
   else hint('Saved '+d+' · '+r.type+'. Next vehicle.');
   showTypes();recent();counts();
 }
 const undoStack=[];   // ids in the order they were typed on this phone
+$('rmkx').onclick=()=>{$('rmk').value='';$('rmk').focus()};
 $('undo').onclick=()=>{const mp=myPost();let r=null;
   while(undoStack.length&&!r){const id=undoStack.pop(),x=recs.find(y=>y.id===id);if(x&&!x.deleted)r=x}
   if(!r)r=live().filter(x=>x.own&&postOf(x)===mp).sort((a,b)=>a.t-b.t).pop();
@@ -311,7 +314,7 @@ function recent(){
   live().filter(r=>postOf(r)===mp).sort((a,b)=>b.t-a.t).slice(0,5).forEach(r=>{
     const row=document.createElement('div');row.className='row';
     const b=document.createElement('b');b.textContent=digitsOf(r.plate)||'—';
-    const t=document.createElement('span');t.className='t';t.textContent=r.type+' · '+hm(r.t);
+    const t=document.createElement('span');t.className='t';t.textContent=r.type+' · '+hm(r.t);if(r.remarks){const k=document.createElement('span');k.className='rk';k.textContent=' · '+r.remarks;t.append(k)}
     const x=document.createElement('button');x.className='x';x.textContent='✕';x.setAttribute('aria-label','Delete '+digitsOf(r.plate));
     x.onclick=()=>{r.deleted=1;touch(r);showTypes();recent();counts();hint('Removed '+digitsOf(r.plate)+' '+r.type+'.')};
     row.append(b,t,x);R.append(row)});
@@ -345,7 +348,9 @@ function list(){
     const ty=document.createElement('select');TYPES.forEach(o=>{const e=document.createElement('option');e.textContent=o;e.selected=o===r.type;ty.append(e)});
     ty.onchange=()=>{r.type=ty.value;touch(r);summary()};
     const x=document.createElement('button');x.className='x';x.textContent='✕';x.onclick=()=>{r.deleted=1;touch(r);summary();list();counts()};
-    row.append(t,n,ty,x);L.append(row)});
+    const rm=document.createElement('input');rm.className='rm';rm.type='text';rm.maxLength=60;rm.placeholder='Remarks';rm.value=r.remarks||'';rm.setAttribute('aria-label','Remarks');
+    rm.onchange=()=>{r.remarks=rm.value.trim().slice(0,60);touch(r)};
+    row.append(t,n,ty,x,rm);L.append(row)});
 }
 function refreshRec(){if(view==='rec'){summary();if(!$('list').contains(document.activeElement))list()}if(view==='count'){showTypes();recent()}}
 
@@ -398,12 +403,12 @@ $('go').onclick=async()=>{
   box.append(tb);R.append(box);
   // ---- Excel ----
   const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
-    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
+    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||'','Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
       [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):''}});
   const pairRows=d=>S[d].T.map(p=>({'Detour':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
-    'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t)}));
-  const onlyRows=d=>[...S[d].eOnly.map(r=>({'Detour':d,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type})),
-    ...S[d].xOnly.map(r=>({'Detour':d,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type}))].sort((a,b)=>a.Time<b.Time?-1:1);
+    'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t),'Entry remarks':p.e.remarks||'','Exit remarks':p.x.remarks||''}));
+  const onlyRows=d=>[...S[d].eOnly.map(r=>({'Detour':d,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''})),
+    ...S[d].xOnly.map(r=>({'Detour':d,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''}))].sort((a,b)=>a.Time<b.Time?-1:1);
   const summ=[];const sr=(k,f)=>{const row={'':k};let tot=0;DETOURS.forEach(d=>{const v=f(S[d]);row[d]=v;tot+=v});row['Total']=tot;summ.push(row)};
   sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
   sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
@@ -440,7 +445,7 @@ $('tCount').onclick=()=>setView('count');$('tRec').onclick=()=>setView('rec');$(
 /* ---- cloud sync with the Google Sheet (Code.gs) ---- */
 let syncing=false,syncErr='',lastOk=0,skew=0,kickT=null,probed='',probedAt=0,replaced=false;
 function kick(ms){if(!cfg.url)return syncChip();clearTimeout(kickT);kickT=setTimeout(sync,ms==null?1500:ms)}
-const wire=r=>({id:r.id,gate:r.gate||'',dir:r.side,type:r.type,plate:r.plate||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,thumb:''});
+const wire=r=>({id:r.id,gate:r.gate||'',dir:r.side,type:r.type,plate:r.plate||'',remarks:r.remarks||'',t:r.t,time:fmt(r.t),updated:r.updated,deleted:r.deleted?1:0,thumb:''});
 async function api(body,since){
   const u=cfg.url,ctl=new AbortController(),tm=setTimeout(()=>ctl.abort(),30000);
   const q=typeof since==='string'?since:'since='+since;
@@ -453,7 +458,7 @@ function merge(rs){
   for(const x of rs){
     if(x.srv>cfg.lastSrv)cfg.lastSrv=x.srv;
     if(mine&&x.gate+'|'+x.dir!==mine&&!(x.gate==='LOGIN'&&x.dir===cfg.user))continue;   // a post sees only its own vehicles
-    const l=by.get(x.id),f={gate:x.gate,side:x.dir,type:x.type,plate:x.plate,t:x.t,updated:x.updated,deleted:x.deleted?1:0};
+    const l=by.get(x.id),f={gate:x.gate,side:x.dir,type:x.type,plate:x.plate,remarks:x.remarks||'',t:x.t,updated:x.updated,deleted:x.deleted?1:0};
     if(l){if(x.updated>l.updated){Object.assign(l,f,{dirty:0});ch++}}
     else if(!x.deleted){const r={id:x.id,...f,own:false,dirty:0};recs.push(r);by.set(r.id,r);ch++}
   }

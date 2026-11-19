@@ -3,17 +3,17 @@
 // with no sheet it creates "Toll Audit Live" in your Google Drive.
 //
 // How it stores data
-// - Tab "Records", 10 columns. Every save from a phone is ADDED as a new row (never searched or overwritten),
+// - Tab "Records", 11 columns. Every save from a phone is ADDED as a new row (never searched or overwritten),
 //   so saving stays fast however big the sheet gets. An edit or delete is a new row for the same id;
 //   the phones always keep the newest version.
 // - Rows are added in blocks as needed (a new tab only has 1,000 rows).
-// - Google allows 10 million cells per spreadsheet. With 10 columns that is about 1,000,000 rows.
+// - Google allows 10 million cells per spreadsheet. With 11 columns that is about 900,000 rows.
 //   When a spreadsheet reaches MAXROWS, the script starts a new one ("Toll Audit Live (2)", "(3)", ...)
 //   and carries on, so there is no practical limit.
 // - Phones read new rows page by page (PAGE rows at a time), starting where they stopped last time.
 
 const TAB = 'Records';
-const HEAD = ['id', 'detour', 'dir', 'type', 'number', 'time_ms', 'time', 'updated', 'deleted', 'saved_at'];
+const HEAD = ['id', 'detour', 'dir', 'type', 'number', 'time_ms', 'time', 'updated', 'deleted', 'saved_at', 'remarks'];
 const PAGE = 5000;
 const DEFAULT_MAXROWS = 900000;          // rows per spreadsheet before starting a new one
 
@@ -39,7 +39,7 @@ function files_() {
     return f;
   } finally { lock.releaseLock(); }
 }
-// the Records tab, created with exactly 10 columns (blank columns also count towards Google's cell limit)
+// the Records tab, created with exactly 11 columns (blank columns also count towards Google's cell limit)
 function tab_(ss, fresh) {
   let s = ss.getSheetByName(TAB);
   if (!s) {
@@ -50,11 +50,13 @@ function tab_(ss, fresh) {
     if (mc > HEAD.length) s.deleteColumns(HEAD.length + 1, mc - HEAD.length);
     if (fresh) { const s1 = ss.getSheetByName('Sheet1'); if (s1 && ss.getSheets().length > 1) ss.deleteSheet(s1); }
   }
+  if (s.getMaxColumns() < HEAD.length) s.insertColumnsAfter(s.getMaxColumns(), HEAD.length - s.getMaxColumns());   // tab made by the previous script: add the remarks column
+  if (String(s.getRange(1, HEAD.length).getValues()[0][0]) !== HEAD[HEAD.length - 1]) s.getRange(1, HEAD.length).setValue(HEAD[HEAD.length - 1]);
   return s;
 }
 function rec_(r) {
   return {id: String(r[0]), gate: String(r[1]), dir: String(r[2]), type: String(r[3]), plate: String(r[4]), t: Number(r[5]),
-          time: String(r[6]), updated: Number(r[7]), deleted: Number(r[8]), srv: Number(r[9])};
+          time: String(r[6]), updated: Number(r[7]), deleted: Number(r[8]), srv: Number(r[9]), remarks: String(r[10] || '')};
 }
 
 function doGet(e) {
@@ -96,7 +98,7 @@ function doPost(e) {
     lock.waitLock(25000);
     const now = Date.now();
     const rows = (body.records || []).filter(r => r && r.id).map(r => [String(r.id), r.gate || '', r.dir || '', r.type || '',
-      "'" + String(r.plate || ''), Number(r.t) || 0, r.time || '', Number(r.updated) || 0, r.deleted ? 1 : 0, now]);   // ' keeps leading zeros (0546)
+      "'" + String(r.plate || ''), Number(r.t) || 0, r.time || '', Number(r.updated) || 0, r.deleted ? 1 : 0, now, String(r.remarks || '').slice(0, 60)]);   // ' keeps leading zeros (0546)
     if (!rows.length) return out_({ok: true, added: 0, now: now});
     const p = props_(), f = files_();
     let ss = SpreadsheetApp.openById(f[f.length - 1]), s = tab_(ss), n = s.getLastRow();

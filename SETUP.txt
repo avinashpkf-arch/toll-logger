@@ -16,7 +16,7 @@ Chrome menu (⋮) > Install app / Add to Home screen, so it opens like an app.
    (keeps the same link). Phones that are open switch over by themselves within 2 minutes.
 
    How the sheet works (script version 2)
-   - Vehicles go into the tab "Records" (10 columns). Every save is ADDED as a new row, so an edit or a
+   - Vehicles go into the tab "Records" (11 columns). Every save is ADDED as a new row, so an edit or a
      delete shows up as an extra row for the same vehicle. The tab is a log: use the app's Excel for counts.
    - Rows are added automatically as needed. One spreadsheet holds about 900,000 rows; after that the
      script starts "Toll Audit Live (2)", "(3)" … in your Drive by itself. No practical limit.
