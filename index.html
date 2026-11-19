@@ -179,7 +179,7 @@ label.chk{font-size:17px}
 <section id="vRec" hidden>
  <div class="card"><h2>Counts</h2><div class="scroll" id="sum"></div></div>
  <div class="card" id="matchCard"><h2>Match and export</h2>
-  <div style="font-size:15px">An exit is matched with the closest earlier entry at the same detour with the same 4 digits and the same vehicle type (different type only as a last resort). Times are when each phone saved the vehicle.</div>
+  <div style="font-size:15px">An exit is matched with the closest earlier entry on its paired route (LHS Kaniyur Entry with LHS LMW Exit, LHS LMW Entry with LHS Kaniyur Exit, RHS Kaniyur Entry with RHS Rangaz Exit, RHS Rangaz Entry with RHS Kaniyur Exit) with the same 4 digits and the same vehicle type (different type only as a last resort). Times are when each phone saved the vehicle.</div>
   <label class="chk"><input type="checkbox" id="fuzzy" checked>Also match likely typos: one digit wrong or two digits swapped, same vehicle type, within 30 minutes</label>
   <button id="go" class="pri">Match and download Excel</button><div id="res" style="margin-top:10px"></div></div>
  <div class="card"><h2>Records</h2>
@@ -215,7 +215,8 @@ label.chk{font-size:17px}
 </nav>
 <script>
 const KEY='tollLog_v2',CKEY='tollCfg_v1',TYPES=['Car','LCV','Truck','Bus','MAV'];
-const DETOURS=['LHS Kaniyur','LHS LMW','RHS Kaniyur','RHS Rangaz'];   // each detour: its entries are matched with its own exits
+const DETOURS=['LHS Kaniyur','LHS LMW','RHS Kaniyur','RHS Rangaz'];   
+const ROUTES=[['LHS Kaniyur','LHS LMW'],['LHS LMW','LHS Kaniyur'],['RHS Kaniyur','RHS Rangaz'],['RHS Rangaz','RHS Kaniyur']].map(([a,b])=>({n:a+' → '+b,en:a,ex:b}));   // vehicles entering at one detour post leave at the other post of the same side
 const POSTS={};DETOURS.forEach(d=>{POSTS[d+'|ENTRY']=d+' · Entry';POSTS[d+'|EXIT']=d+' · Exit'});
 const SALT='toll-detour-2026';
 const USERS=[{id:'admin',role:'ADMIN',len:6,h:'14b20188fb0ef7590eec0cc8efe291b88a1073a7101b8fccddfd91dce430ca69'},{id:'lhs-kaniyur-entry',role:'LHS Kaniyur|ENTRY',len:4,h:'21bddc7e9a45731635ac9f9c1983f86f867388dd999ec5fa4902c4fa4ecfd1a9'},{id:'lhs-kaniyur-exit',role:'LHS Kaniyur|EXIT',len:4,h:'9433c360dd804ae914bf90699e0c9c2425db5081806299f016c3db1ec46bbe59'},{id:'lhs-lmw-entry',role:'LHS LMW|ENTRY',len:4,h:'c28314d06648c2c63beaa1a8462dfa7fad7e382fa83058bed53038c9178d7b19'},{id:'lhs-lmw-exit',role:'LHS LMW|EXIT',len:4,h:'c358e58fd7dc7f58241075b3e18cf1973accb7172d0a803e37569839976fdf4f'},{id:'rhs-kaniyur-entry',role:'RHS Kaniyur|ENTRY',len:4,h:'34a06a3621bdfefeb300083c9304bb9082daf14d3bed7877c85b42fd60131d25'},{id:'rhs-kaniyur-exit',role:'RHS Kaniyur|EXIT',len:4,h:'815d135384410287a58786d854b245eb4e55cf4525678fddb1760a0246f0e366'},{id:'rhs-rangaz-entry',role:'RHS Rangaz|ENTRY',len:4,h:'cddc051d28f5410ee4f0e53f5de4ae15a7682d6e64e5d88506fefb10ac1c282d'},{id:'rhs-rangaz-exit',role:'RHS Rangaz|EXIT',len:4,h:'3653e6528dfda0decc9f468c97b6a47a9e18063a1262abeb53bfd57db5e21e22'}];   // PINs are stored only as SHA-256 hashes
@@ -354,7 +355,7 @@ function list(){
 }
 function refreshRec(){if(view==='rec'){summary();if(!$('list').contains(document.activeElement))list()}if(view==='count'){showTypes();recent()}}
 
-/* ---- matching: each detour's entries with that same detour's exits ---- */
+/* ---- matching: each entry post with its paired exit post ---- */
 function digitDiff(a,b){                 // 0 = same, 1 = one digit wrong, 2 = two neighbours swapped, -1 = too different
   if(a===b)return 0;if(a.length!==4||b.length!==4)return -1;
   let d=[];for(let i=0;i<4;i++)if(a[i]!==b[i])d.push(i);
@@ -370,8 +371,8 @@ function neighbours(n){             // numbers one typo away: [number, 1 = one d
 }
 const KIND={0:'Exact',1:'Typo – one digit differs',2:'Typo – two digits swapped'};
 const FUZZY_MIN=30,CLOCK_SLACK=1;   // typo matches only within 30 min; allow 1 min for small clock differences between phones
-function matchSide(g,fuzzy){
-  const L=live(),E=L.filter(r=>r.gate===g&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===g&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
+function matchSide(rt,fuzzy){
+  const L=live(),E=L.filter(r=>r.gate===rt.en&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===rt.ex&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
   const used=new Set(),pairs=[],xm=new Map();
   const byNum=new Map();for(const e of E){const k=digitsOf(e.plate);if(!byNum.has(k))byNum.set(k,[]);byNum.get(k).push(e)}   // look-up by number: fast even with tens of thousands
   const pass=mode=>{for(const x of X){if(xm.has(x))continue;let best=null;   // mode: 'same' exact + same type, 'other' exact + other type, 'typo'
@@ -393,10 +394,10 @@ const loadScript=src=>new Promise((ok,no)=>{const s=document.createElement('scri
 $('go').onclick=async()=>{
   const R=$('res'),fz=$('fuzzy').checked;R.textContent='Matching…';
   if(cfg.url)try{await sync()}catch(e){}
-  const S={};DETOURS.forEach(d=>S[d]=matchSide(d,fz));
+  const S={};ROUTES.forEach(r=>S[r.n]=matchSide(r,fz));
   R.textContent='';const box=document.createElement('div');box.className='scroll';const tb=document.createElement('table'),h=tb.insertRow();
-  ['',...DETOURS].forEach(k=>{const th=document.createElement('th');th.textContent=k;th.style.whiteSpace='normal';h.append(th)});
-  const add=(lab,f,b)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;DETOURS.forEach(d=>{const c=tr.insertCell();c.textContent=f(S[d]);if(b)c.style.fontWeight='700'})};
+  ['',...ROUTES.map(r=>r.n)].forEach(k=>{const th=document.createElement('th');th.textContent=k;th.style.whiteSpace='normal';h.append(th)});
+  const add=(lab,f,b)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;ROUTES.forEach(r=>{const c=tr.insertCell();c.textContent=f(S[r.n]);if(b)c.style.fontWeight='700'})};
   add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);add('Matched',s=>s.T.length,1);
   add('· exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('· typo',s=>s.T.filter(p=>p.dd>0).length);
   add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
@@ -405,20 +406,20 @@ $('go').onclick=async()=>{
   const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
     return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||'','Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
       [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):''}});
-  const pairRows=d=>S[d].T.map(p=>({'Detour':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
+  const pairRows=d=>S[d].T.map(p=>({'Route':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
     'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t),'Entry remarks':p.e.remarks||'','Exit remarks':p.x.remarks||''}));
-  const onlyRows=d=>[...S[d].eOnly.map(r=>({'Detour':d,'Post':'Entry','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''})),
-    ...S[d].xOnly.map(r=>({'Detour':d,'Post':'Exit','Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''}))].sort((a,b)=>a.Time<b.Time?-1:1);
-  const summ=[];const sr=(k,f)=>{const row={'':k};let tot=0;DETOURS.forEach(d=>{const v=f(S[d]);row[d]=v;tot+=v});row['Total']=tot;summ.push(row)};
+  const onlyRows=d=>[...S[d].eOnly.map(r=>({'Route':d,'Post':POSTS[ROUTES.find(r=>r.n===d).en+'|ENTRY'],'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''})),
+    ...S[d].xOnly.map(r=>({'Route':d,'Post':POSTS[ROUTES.find(r=>r.n===d).ex+'|EXIT'],'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''}))].sort((a,b)=>a.Time<b.Time?-1:1);
+  const summ=[];const sr=(k,f)=>{const row={'':k};let tot=0;ROUTES.forEach(r=>{const v=f(S[r.n]);row[r.n]=v;tot+=v});row['Total']=tot;summ.push(row)};
   sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
   sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
   sr('Matched – exact number',s=>s.T.filter(p=>p.dd===0).length);
   sr('Matched – likely typo',s=>s.T.filter(p=>p.dd>0).length);sr('Matched total (transit)',s=>s.T.length);
   TYPES.forEach(t=>sr('   Matched – '+t,s=>s.T.filter(p=>p.e.type===t).length));sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
-  summ.push({},{'':'Typo matching',[DETOURS[0]]:fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created',[DETOURS[0]]:fmt(Date.now())});
+  summ.push({},{'':'Typo matching',[ROUTES[0].n]:fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created',[ROUTES[0].n]:fmt(Date.now())});
   const sheets={'Summary':summ};
-  DETOURS.forEach(d=>{sheets[d+' Entry']=stationRows(S[d],S[d].E,true);sheets[d+' Exit']=stationRows(S[d],S[d].X,false)});
-  sheets['Matched']=DETOURS.flatMap(pairRows);sheets['Unmatched']=DETOURS.flatMap(onlyRows);
+  ROUTES.forEach(r=>{sheets[r.en+' Entry']=stationRows(S[r.n],S[r.n].E,true);sheets[r.ex+' Exit']=stationRows(S[r.n],S[r.n].X,false)});
+  sheets['Matched']=ROUTES.flatMap(r=>pairRows(r.n));sheets['Unmatched']=ROUTES.flatMap(r=>onlyRows(r.n));
   const msg=(t,c)=>{const d=document.createElement('div');d.className=c;d.style.marginTop='8px';d.textContent=t;R.append(d)};
   if(!window.XLSX)try{await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch(e){}
   try{

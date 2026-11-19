@@ -51,7 +51,7 @@ Chrome menu (⋮) > Install app / Add to Home screen, so it opens like an app.
 4. MATCH AND EXCEL (Admin only: Records tab, once all eight phones have synced)
    - Each detour is matched on its own: LHS Kaniyur entries with LHS Kaniyur exits, LHS LMW with LHS LMW,
      RHS Kaniyur with RHS Kaniyur, RHS Rangaz with RHS Rangaz.
-   - No time limit: each exit is matched with the closest earlier entry at the same detour with the same
+   - No time limit: each exit is matched with the closest earlier entry on its paired route with the same
      4 digits AND the same vehicle type. Only leftovers are then paired across types (a guide may have tapped
      the wrong type) – these show "Same type: No". Times are when each phone saved the vehicle.
    - "Also match likely typos" (on by default): one digit wrong or two digits swapped, only for the same
