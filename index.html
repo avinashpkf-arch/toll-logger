@@ -369,13 +369,22 @@ function neighbours(n){             // numbers one typo away: [number, 1 = one d
   for(let i=0;i<3;i++)if(n[i]!==n[i+1])out.push([n.slice(0,i)+n[i+1]+n[i]+n.slice(i+2),2]);
   return out;
 }
-const KIND={0:'Exact',1:'Typo – one digit differs',2:'Typo – two digits swapped'};
+const KIND={0:'Exact',1:'Typo – one digit differs',2:'Typo – two digits swapped',3:'Number 0000 – matched by remarks'};
+const NONUM='0000',REMARK_MIN=60,REMARK_SCORE=.5;   // 0000 = number could not be read; such vehicles are matched by their remarks (similar words, same type, within 60 min)
+const lev=(a,b)=>{const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){let q=[i];for(let j=1;j<=n;j++)q[j]=Math.min(p[j]+1,q[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=q}return p[n]};
+const words=t=>String(t||'').toLowerCase().replace(/[^a-z0-9\u0900-\u097f\u0b80-\u0bff]+/g,' ').trim().split(' ').filter(Boolean);
+function remarkScore(a,b){                 // 0..1: how many words the two remarks share (a word one letter off still counts, so spelling slips are fine)
+  const A=words(a),B=words(b);if(!A.length||!B.length)return 0;
+  const used=new Set();let hit=0;
+  for(const w of A){let bi=-1;B.forEach((v,i)=>{if(!used.has(i)&&(v===w||(w.length>=4&&v.length>=4&&lev(w,v)<=1)))bi=bi<0?i:bi});if(bi>=0){used.add(bi);hit++}}
+  return 2*hit/(A.length+B.length);
+}
 const FUZZY_MIN=30,CLOCK_SLACK=1;   // typo matches only within 30 min; allow 1 min for small clock differences between phones
 function matchSide(rt,fuzzy){
   const L=live(),E=L.filter(r=>r.gate===rt.en&&r.side==='ENTRY').sort((a,b)=>a.t-b.t),X=L.filter(r=>r.gate===rt.ex&&r.side==='EXIT').sort((a,b)=>a.t-b.t);
   const used=new Set(),pairs=[],xm=new Map();
-  const byNum=new Map();for(const e of E){const k=digitsOf(e.plate);if(!byNum.has(k))byNum.set(k,[]);byNum.get(k).push(e)}   // look-up by number: fast even with tens of thousands
-  const pass=mode=>{for(const x of X){if(xm.has(x))continue;let best=null;   // mode: 'same' exact + same type, 'other' exact + other type, 'typo'
+  const byNum=new Map();for(const e of E){if(digitsOf(e.plate)===NONUM)continue;const k=digitsOf(e.plate);if(!byNum.has(k))byNum.set(k,[]);byNum.get(k).push(e)}   // look-up by number: fast even with tens of thousands
+  const pass=mode=>{for(const x of X){if(xm.has(x)||digitsOf(x.plate)===NONUM)continue;let best=null;   // mode: 'same' exact + same type, 'other' exact + other type, 'typo'
     const dx=digitsOf(x.plate),keys=mode==='typo'?neighbours(dx):[[dx,0]];
     for(const [k,dd] of keys)for(const e of byNum.get(k)||[]){if(used.has(e))continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK)continue;   // exit must come after the entry
       const st=e.type===x.type;
@@ -386,6 +395,13 @@ function matchSide(rt,fuzzy){
   pass('same');                      // same number and same vehicle type first: a different category is a different vehicle
   pass('other');                     // then same number, other type (a guide may have tapped the wrong type) – shown as 'Same type: No'
   if(fuzzy)pass('typo');             // typos last, so a typo never takes another vehicle's match
+  if(fuzzy){                        // vehicles whose number could not be read (0000): match by remarks
+    const Z=E.filter(e=>digitsOf(e.plate)===NONUM&&!used.has(e));
+    for(const x of X){if(xm.has(x)||digitsOf(x.plate)!==NONUM||!x.remarks)continue;let best=null;
+      for(const e of Z){if(used.has(e)||e.type!==x.type)continue;const m=(x.t-e.t)/60000;if(m<-CLOCK_SLACK||m>REMARK_MIN)continue;
+        const sc=remarkScore(e.remarks,x.remarks);if(sc<REMARK_SCORE)continue;
+        if(!best||sc>best.sc||(sc===best.sc&&m<best.m))best={e,dd:3,sc,m}}
+      if(best){used.add(best.e);xm.set(x,best);pairs.push({e:best.e,x,dd:3,sc:best.sc})}}}
   const T=pairs.sort((a,b)=>a.e.t-b.e.t);
   return{E,X,T,eOnly:E.filter(e=>!used.has(e)),xOnly:X.filter(x=>!xm.has(x)),em:new Map(T.map(p=>[p.e,p])),xmap:new Map(T.map(p=>[p.x,p]))};
 }
@@ -399,14 +415,14 @@ $('go').onclick=async()=>{
   ['',...ROUTES.map(r=>r.n)].forEach(k=>{const th=document.createElement('th');th.textContent=k;th.style.whiteSpace='normal';h.append(th)});
   const add=(lab,f,b)=>{const tr=tb.insertRow();tr.insertCell().textContent=lab;ROUTES.forEach(r=>{const c=tr.insertCell();c.textContent=f(S[r.n]);if(b)c.style.fontWeight='700'})};
   add('Entries',s=>s.E.length);add('Exits',s=>s.X.length);add('Matched',s=>s.T.length,1);
-  add('· exact',s=>s.T.filter(p=>p.dd===0).length);if(fz)add('· typo',s=>s.T.filter(p=>p.dd>0).length);
+  add('· exact',s=>s.T.filter(p=>p.dd===0).length);if(fz){add('· typo',s=>s.T.filter(p=>p.dd===1||p.dd===2).length);add('· 0000 by remarks',s=>s.T.filter(p=>p.dd===3).length)}
   add('Entry only',s=>s.eOnly.length);add('Exit only',s=>s.xOnly.length);
   box.append(tb);R.append(box);
   // ---- Excel ----
   const stationRows=(s,list,isEntry)=>list.map(r=>{const p=isEntry?s.em.get(r):s.xmap.get(r);
-    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||'','Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'',
+    return{'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||'','Matched':p?KIND[p.dd]:'–','Matched with':p?digitsOf((isEntry?p.x:p.e).plate):'','Matched with remarks':p?(isEntry?p.x:p.e).remarks||'':'',
       [isEntry?'Exit time':'Entry time']:p?fmt((isEntry?p.x:p.e).t):''}});
-  const pairRows=d=>S[d].T.map(p=>({'Route':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd],
+  const pairRows=d=>S[d].T.map(p=>({'Route':d,'Entry number':digitsOf(p.e.plate),'Exit number':digitsOf(p.x.plate),'Match':KIND[p.dd]+(p.dd===3?' ('+Math.round(p.sc*100)+'%)':''),
     'Entry type':p.e.type,'Exit type':p.x.type,'Same type':p.e.type===p.x.type?'Yes':'No','Entry time':fmt(p.e.t),'Exit time':fmt(p.x.t),'Entry remarks':p.e.remarks||'','Exit remarks':p.x.remarks||''}));
   const onlyRows=d=>[...S[d].eOnly.map(r=>({'Route':d,'Post':POSTS[ROUTES.find(r=>r.n===d).en+'|ENTRY'],'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''})),
     ...S[d].xOnly.map(r=>({'Route':d,'Post':POSTS[ROUTES.find(r=>r.n===d).ex+'|EXIT'],'Time':fmt(r.t),'Number':digitsOf(r.plate),'Vehicle type':r.type,'Remarks':r.remarks||''}))].sort((a,b)=>a.Time<b.Time?-1:1);
@@ -414,9 +430,9 @@ $('go').onclick=async()=>{
   sr('Entries',s=>s.E.length);TYPES.forEach(t=>sr('   Entries – '+t,s=>s.E.filter(r=>r.type===t).length));
   sr('Exits',s=>s.X.length);TYPES.forEach(t=>sr('   Exits – '+t,s=>s.X.filter(r=>r.type===t).length));
   sr('Matched – exact number',s=>s.T.filter(p=>p.dd===0).length);
-  sr('Matched – likely typo',s=>s.T.filter(p=>p.dd>0).length);sr('Matched total (transit)',s=>s.T.length);
+  sr('Matched – likely typo',s=>s.T.filter(p=>p.dd===1||p.dd===2).length);sr('Matched – 0000 by remarks',s=>s.T.filter(p=>p.dd===3).length);sr('Matched total (transit)',s=>s.T.length);
   TYPES.forEach(t=>sr('   Matched – '+t,s=>s.T.filter(p=>p.e.type===t).length));sr('Entry only (no exit found)',s=>s.eOnly.length);sr('Exit only (no entry found)',s=>s.xOnly.length);
-  summ.push({},{'':'Typo matching',[ROUTES[0].n]:fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min)':'Off'},{'':'Created',[ROUTES[0].n]:fmt(Date.now())});
+  summ.push({},{'':'Typo matching',[ROUTES[0].n]:fz?'On (one digit wrong or two swapped, same type, within '+FUZZY_MIN+' min; 0000 numbers matched by remarks within '+REMARK_MIN+' min)':'Off'},{'':'Created',[ROUTES[0].n]:fmt(Date.now())});
   const sheets={'Summary':summ};
   ROUTES.forEach(r=>{sheets[r.en+' Entry']=stationRows(S[r.n],S[r.n].E,true);sheets[r.ex+' Exit']=stationRows(S[r.n],S[r.n].X,false)});
   sheets['Matched']=ROUTES.flatMap(r=>pairRows(r.n));sheets['Unmatched']=ROUTES.flatMap(r=>onlyRows(r.n));

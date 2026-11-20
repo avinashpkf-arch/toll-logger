@@ -8,7 +8,7 @@ Eight-phone manual counter for a toll detour audit (4 detours, entry and exit po
 - Guides tap the vehicle type and the last 4 digits of the number plate on a phone-style keypad (saves on the 4th digit)
 - All eight phones share one Google Sheet through a small Apps Script web app (append-only log, rows added as needed,
   ~900k rows per spreadsheet, then it starts a new spreadsheet automatically; phones read new rows page by page)
-- Matching by route (LHS Kaniyur Entry with LHS LMW Exit, LHS LMW Entry with LHS Kaniyur Exit, RHS Kaniyur Entry with RHS Rangaz Exit, RHS Rangaz Entry with RHS Kaniyur Exit), no time limit: exact numbers first (closest earlier entry,
+- Matching by route; vehicles with number 0000 are matched by their remarks (similar words, same type, within 60 min) when typo matching is on (LHS Kaniyur Entry with LHS LMW Exit, LHS LMW Entry with LHS Kaniyur Exit, RHS Kaniyur Entry with RHS Rangaz Exit, RHS Rangaz Entry with RHS Kaniyur Exit), no time limit: exact numbers first (closest earlier entry,
   same type preferred), then optional typo matches (one digit wrong or two neighbouring digits swapped,
   same type, within 30 minutes)
 - Excel export: Summary, one sheet per post (8), Matched, Unmatched
